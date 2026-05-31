@@ -13,6 +13,8 @@ int main(int argc, char **argv) {
   int ngl = 99;
   // number of tokens to predict
   int n_predict = 32;
+  // suppress llama.cpp logs and timing output
+  bool quiet = false;
 
   // parse command line arguments
 
@@ -27,6 +29,9 @@ int main(int argc, char **argv) {
       .help("Number of layers to offload to the GPU (default: 99)")
       .scan<'i', int>()
       .default_value(ngl);
+  args.add_argument("-q", "--quiet")
+      .help("Only print the prompt and generated text")
+      .flag();
   args.add_argument("prompt")
       .help("The prompt to generate text from (default: 'Hello my name is')")
       .remaining()
@@ -43,6 +48,7 @@ int main(int argc, char **argv) {
   model_path = args.get<std::string>("model");
   n_predict = args.get<int>("--n_predict");
   ngl = args.get<int>("--n_gpu_layers");
+  quiet = args.get<bool>("--quiet");
   prompt = "";
   const auto &prompt_vec = args.get<std::vector<std::string>>("prompt");
   prompt = std::accumulate(std::next(prompt_vec.begin()), prompt_vec.end(),
@@ -52,6 +58,10 @@ int main(int argc, char **argv) {
                            });
 
   // load dynamic backends
+
+  if (quiet) {
+    llama_log_set([](ggml_log_level, const char *, void *) {}, nullptr);
+  }
 
   ggml_backend_load_all();
 
@@ -92,8 +102,7 @@ int main(int argc, char **argv) {
   // n_batch is the maximum number of tokens that can be processed in a single
   // call to llama_decode
   ctx_params.n_batch = n_prompt;
-  // enable performance counters
-  ctx_params.no_perf = false;
+  ctx_params.no_perf = quiet;
 
   llama_context *ctx = llama_init_from_model(model, ctx_params);
 
@@ -106,7 +115,7 @@ int main(int argc, char **argv) {
   // initialize the sampler
 
   auto sparams = llama_sampler_chain_default_params();
-  sparams.no_perf = false;
+  sparams.no_perf = quiet;
   llama_sampler *smpl = llama_sampler_chain_init(sparams);
 
   llama_sampler_chain_add(smpl, llama_sampler_init_greedy());
@@ -177,15 +186,17 @@ int main(int argc, char **argv) {
   std::cout << "\n";
 
   const auto t_main_end = ggml_time_us();
-  std::cerr << __func__ << ": decoded " << n_decode << " tokens in "
-            << (t_main_end - t_main_start) / 1000000.0f << " s, speed: "
-            << n_decode / ((t_main_end - t_main_start) / 1000000.0f)
-            << " t/s\n";
+  if (!quiet) {
+    std::cerr << __func__ << ": decoded " << n_decode << " tokens in "
+              << (t_main_end - t_main_start) / 1000000.0f << " s, speed: "
+              << n_decode / ((t_main_end - t_main_start) / 1000000.0f)
+              << " t/s\n";
 
-  std::cerr << std::endl;
-  llama_perf_sampler_print(smpl);
-  llama_perf_context_print(ctx);
-  std::cerr << std::endl;
+    std::cerr << std::endl;
+    llama_perf_sampler_print(smpl);
+    llama_perf_context_print(ctx);
+    std::cerr << std::endl;
+  }
 
   llama_sampler_free(smpl);
   llama_free(ctx);
