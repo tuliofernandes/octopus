@@ -1,0 +1,72 @@
+{
+    "version": 6,
+    "configurePresets": [
+        {
+            "name": "ccache-env",
+            "hidden": true,
+            "environment": {
+                "CCACHE_BASEDIR": "${sourceDir}",
+                "CCACHE_SLOPPINESS": "pch_defines,time_macros",
+                "CONAN_HOME": "${sourceDir}/.conan2",
+                "PATH": "${sourceDir}/.venv/bin:$penv{PATH}"
+            }
+        },
+        {
+            "name": "conan-dependency-provider",
+            "hidden": true,
+            "cacheVariables": {
+                "CMAKE_PROJECT_TOP_LEVEL_INCLUDES": "${sourceDir}/cmake-conan/conan_provider.cmake"
+            }
+        },
+        {
+            "name": "ninja",
+            "hidden": true,
+            "inherits": [
+                "ccache-env",
+                "conan-dependency-provider"
+            ],
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build"
+        },
+        {
+            "name": "ci-ninja-debug",
+            "displayName": "Ninja Debug",
+            "inherits": [
+                "ninja"
+            ],
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "ci-ninja-release",
+            "displayName": "Ninja Release",
+            "inherits": [
+                "ninja"
+            ],
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
+            "name": "ci-ninja-RelWithDebInfo",
+            "displayName": "Ninja RelWithDebInfo",
+            "inherits": [
+                "ninja"
+            ],
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+            }
+        },
+        {
+            "name": "ci-ninja-MinSizeRel",
+            "displayName": "Ninja MinSizeRel",
+            "inherits": [
+                "ninja"
+            ],
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "MinSizeRel"
+            }
+        }
+    ]
+}
