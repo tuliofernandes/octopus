@@ -1,6 +1,5 @@
 [requires]
 catch2/3.7.1
-argparse/3.2
 
 [generators]
 CMakeDeps

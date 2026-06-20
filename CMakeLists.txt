@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(LLamaPlayground
+project(octopus
         VERSION 1.0.0
-        DESCRIPTION "An playground for experimenting with llama.cpp"
+        DESCRIPTION "A conservative C++ CLI agent skeleton based on llama.cpp"
         LANGUAGES CXX)
 
 # Export compile commands for use with clangd
@@ -10,8 +10,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # find Catch2 - if configured Conan2 will be used as dependency provider
 find_package(Catch2 REQUIRED)
-find_package(argparse REQUIRED)
-
 include(FetchContent)
 FetchContent_Declare(
         llama
@@ -20,13 +18,17 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(llama)
 
-# An example library to be used in the test - this could be a library you are developing
-add_executable(LLamaPlayground src/main.cpp)
-target_include_directories(LLamaPlayground PUBLIC include)
-target_compile_features(LLamaPlayground PUBLIC cxx_std_17)
-target_link_libraries(LLamaPlayground PRIVATE llama argparse::argparse)
+add_library(octopus_cli STATIC src/cli.cpp)
+target_include_directories(octopus_cli PUBLIC include)
+target_compile_features(octopus_cli PUBLIC cxx_std_17)
+target_compile_options(octopus_cli PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
-target_compile_options(LLamaPlayground PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_executable(octo src/main.cpp)
+target_include_directories(octo PUBLIC include)
+target_compile_features(octo PUBLIC cxx_std_17)
+target_link_libraries(octo PRIVATE octopus_cli llama)
+
+target_compile_options(octo PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 # Enable testing
 include(CTest)
