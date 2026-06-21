@@ -39,6 +39,32 @@
             }
         },
         {
+            "name": "local-amd-vulkan-debug",
+            "displayName": "Local AMD Vulkan Debug",
+            "description": "Debug build with llama.cpp Vulkan backend enabled for local AMD development.",
+            "inherits": [
+                "ninja"
+            ],
+            "binaryDir": "${sourceDir}/build/local-amd-vulkan-debug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "GGML_VULKAN": "ON"
+            }
+        },
+        {
+            "name": "local-amd-hip-debug",
+            "displayName": "Local AMD HIP Debug",
+            "description": "Debug build with llama.cpp HIP backend enabled for local ROCm/HIP development.",
+            "inherits": [
+                "ninja"
+            ],
+            "binaryDir": "${sourceDir}/build/local-amd-hip-debug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "GGML_HIP": "ON"
+            }
+        },
+        {
             "name": "ci-ninja-release",
             "displayName": "Ninja Release",
             "inherits": [
