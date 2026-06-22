@@ -1,0 +1,46 @@
+#include "octopus/completion.hpp"
+
+#include <catch2/catch_test_macros.hpp>
+
+TEST_CASE("stop detector removes stop completed across chunks",
+          "[completion]") {
+  octopus::StopDetector detector({"<end_of_turn>"});
+
+  CHECK_FALSE(detector.append("hello <end"));
+  CHECK(detector.text() == "hello <end");
+
+  CHECK_FALSE(detector.append("_of"));
+  CHECK(detector.text() == "hello <end_of");
+
+  CHECK(detector.append("_turn>"));
+  CHECK(detector.text() == "hello ");
+}
+
+TEST_CASE("stop detector retains partial stop prefixes until resolved",
+          "[completion]") {
+  octopus::StopDetector detector({"<end_of_turn>"});
+
+  CHECK_FALSE(detector.append("alpha <end"));
+  CHECK(detector.text() == "alpha <end");
+
+  CHECK_FALSE(detector.append("x"));
+  CHECK(detector.text() == "alpha <endx");
+}
+
+TEST_CASE("stop detector ignores empty stop strings", "[completion]") {
+  octopus::StopDetector detector({"", "<stop>"});
+
+  CHECK_FALSE(detector.append("answer"));
+  CHECK(detector.text() == "answer");
+
+  CHECK(detector.append("<stop>"));
+  CHECK(detector.text() == "answer");
+}
+
+TEST_CASE("stop detector deduplicates stop strings", "[completion]") {
+  octopus::StopDetector detector({"<stop>", "", "<stop>", "<other>"});
+
+  REQUIRE(detector.stop_strings().size() == 2);
+  CHECK(detector.stop_strings()[0] == "<stop>");
+  CHECK(detector.stop_strings()[1] == "<other>");
+}

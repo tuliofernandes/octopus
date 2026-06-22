@@ -6,6 +6,7 @@ add_executable(octopus_tests)
 target_sources(octopus_tests PRIVATE
         ask_test.cpp
         cli_test.cpp
+        completion_test.cpp
         prompt_test.cpp
         smoke_test.cpp)
 target_link_libraries(octopus_tests PRIVATE Catch2::Catch2WithMain octopus_llm)

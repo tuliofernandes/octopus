@@ -1,10 +1,10 @@
 #include "octopus/llama_cpp_backend.hpp"
 
+#include "octopus/completion.hpp"
 #include "octopus/prompt.hpp"
 
 #include "llama.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -29,36 +29,6 @@ bool fits_int32(std::size_t value) {
 bool fits_uint32(std::size_t value) {
   return value <=
          static_cast<std::size_t>(std::numeric_limits<uint32_t>::max());
-}
-
-std::vector<std::string>
-combined_stop_strings(const std::vector<std::string> &left,
-                      const std::vector<std::string> &right) {
-  std::vector<std::string> combined = left;
-  for (const auto &stop : right) {
-    if (stop.empty()) {
-      continue;
-    }
-    if (std::find(combined.begin(), combined.end(), stop) == combined.end()) {
-      combined.push_back(stop);
-    }
-  }
-  return combined;
-}
-
-bool erase_stop_suffix(std::string &text,
-                       const std::vector<std::string> &stop_strings) {
-  for (const auto &stop : stop_strings) {
-    if (stop.empty() || text.size() < stop.size()) {
-      continue;
-    }
-
-    if (text.compare(text.size() - stop.size(), stop.size(), stop) == 0) {
-      text.erase(text.size() - stop.size());
-      return true;
-    }
-  }
-  return false;
 }
 
 CompletionResult tokenize_prompt(const llama_vocab *vocab,
@@ -151,8 +121,11 @@ struct LlamaCppBackend::Impl {
 
     const auto rendered =
         render_prompt(request.conversation, request.model_profile);
-    const auto stop_strings = combined_stop_strings(rendered.stop_strings,
-                                                    request.generation.stop_strings);
+    std::vector<std::string> stop_strings = rendered.stop_strings;
+    stop_strings.insert(stop_strings.end(),
+                        request.generation.stop_strings.begin(),
+                        request.generation.stop_strings.end());
+    StopDetector stop_detector(std::move(stop_strings));
 
     const llama_vocab *vocab = llama_model_get_vocab(model.get());
     if (vocab == nullptr) {
@@ -223,10 +196,9 @@ struct LlamaCppBackend::Impl {
         return converted;
       }
 
-      result.text += piece;
       ++result.generated_tokens;
 
-      if (erase_stop_suffix(result.text, stop_strings)) {
+      if (stop_detector.append(piece)) {
         result.finish_reason = FinishReason::Stop;
         break;
       }
@@ -234,6 +206,7 @@ struct LlamaCppBackend::Impl {
       batch = llama_batch_get_one(&sampled_token, 1);
     }
 
+    result.text = stop_detector.text();
     return result;
   }
 
