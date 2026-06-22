@@ -23,10 +23,16 @@ target_include_directories(octopus_cli PUBLIC include)
 target_compile_features(octopus_cli PUBLIC cxx_std_17)
 target_compile_options(octopus_cli PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
-add_executable(octo src/main.cpp)
+add_library(octopus_llm STATIC src/ask.cpp src/prompt.cpp)
+target_include_directories(octopus_llm PUBLIC include)
+target_compile_features(octopus_llm PUBLIC cxx_std_17)
+target_link_libraries(octopus_llm PUBLIC octopus_cli)
+target_compile_options(octopus_llm PRIVATE -Wall -Wextra -Wpedantic -Werror)
+
+add_executable(octo src/main.cpp src/llama_cpp_backend.cpp)
 target_include_directories(octo PUBLIC include)
 target_compile_features(octo PUBLIC cxx_std_17)
-target_link_libraries(octo PRIVATE octopus_cli llama)
+target_link_libraries(octo PRIVATE octopus_llm llama)
 
 target_compile_options(octo PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
