@@ -1,7 +1,5 @@
 #include "octopus/ask.hpp"
 
-#include "octopus/prompt.hpp"
-
 #include <ostream>
 
 namespace octopus {
@@ -20,15 +18,20 @@ bool completion_failed(const CompletionResult &completion) {
 } // namespace
 
 CompletionRequest make_ask_request(const CliOptions &options) {
+  return make_ask_request(options, ModelProfile::gemma_instruction());
+}
+
+CompletionRequest make_ask_request(const CliOptions &options,
+                                   const ModelProfile &profile) {
   CompletionRequest request;
+  request.model_profile = profile;
   request.conversation.messages.push_back({Role::System, kSystemPrompt});
   request.conversation.messages.push_back({Role::Developer, kDeveloperPrompt});
   request.conversation.messages.push_back({Role::User, options.prompt});
   request.generation.max_tokens = options.n_predict;
   request.generation.sampler_profile = SamplerProfile::Deterministic;
   request.generation.quiet = options.quiet;
-  request.generation.stop_strings =
-      render_gemma_prompt(request.conversation).stop_strings;
+  request.generation.stop_strings = profile.stop_strings;
   return request;
 }
 

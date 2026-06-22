@@ -52,6 +52,22 @@ TEST_CASE("ask options build a message-shaped completion request", "[ask]") {
   CHECK(request.generation.stop_strings[0] == "<end_of_turn>");
 }
 
+TEST_CASE("ask request accepts selected model profile policy", "[ask]") {
+  octopus::CliOptions options;
+  options.mode = octopus::CliMode::Ask;
+  options.prompt = "Say hello";
+
+  auto profile = octopus::ModelProfile::gemma_instruction();
+  profile.stop_strings = {"<custom-profile-stop>"};
+
+  const auto request = octopus::make_ask_request(options, profile);
+
+  CHECK(request.model_profile.prompt_renderer ==
+        octopus::PromptRenderer::GemmaInstruction);
+  REQUIRE(request.generation.stop_strings.size() == 1);
+  CHECK(request.generation.stop_strings[0] == "<custom-profile-stop>");
+}
+
 TEST_CASE("one-shot ask prints only successful completion text", "[ask]") {
   octopus::CompletionResult completion;
   completion.text = "Hello from the fake backend.";
@@ -69,6 +85,10 @@ TEST_CASE("one-shot ask prints only successful completion text", "[ask]") {
 
   CHECK(result.exit_code == 0);
   CHECK(backend.calls == 1);
+  CHECK(backend.last_request.model_profile.prompt_renderer ==
+        octopus::PromptRenderer::GemmaInstruction);
+  REQUIRE(backend.last_request.generation.stop_strings.size() == 1);
+  CHECK(backend.last_request.generation.stop_strings[0] == "<end_of_turn>");
   CHECK(backend.last_request.conversation.messages.back().content ==
         "Say hello");
   CHECK(out.str() == "Hello from the fake backend.\n");

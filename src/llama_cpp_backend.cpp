@@ -149,7 +149,8 @@ struct LlamaCppBackend::Impl {
       return backend_error("max_tokens must be positive");
     }
 
-    const auto rendered = render_gemma_prompt(request.conversation);
+    const auto rendered =
+        render_prompt(request.conversation, request.model_profile);
     const auto stop_strings = combined_stop_strings(rendered.stop_strings,
                                                     request.generation.stop_strings);
 

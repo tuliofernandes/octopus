@@ -47,6 +47,28 @@ std::string policy_prelude(const std::vector<Message> &policy_messages) {
 
 } // namespace
 
+ModelProfile ModelProfile::gemma_instruction() {
+  ModelProfile profile;
+  profile.prompt_renderer = PromptRenderer::GemmaInstruction;
+  profile.stop_strings = {kGemmaEndOfTurn};
+  return profile;
+}
+
+RenderedPrompt render_prompt(const Conversation &conversation,
+                             const ModelProfile &profile) {
+  switch (profile.prompt_renderer) {
+  case PromptRenderer::GemmaInstruction: {
+    auto rendered = render_gemma_prompt(conversation);
+    rendered.stop_strings = profile.stop_strings;
+    return rendered;
+  }
+  }
+
+  auto rendered = render_gemma_prompt(conversation);
+  rendered.stop_strings = profile.stop_strings;
+  return rendered;
+}
+
 RenderedPrompt render_gemma_prompt(const Conversation &conversation) {
   std::ostringstream output;
   std::vector<Message> pending_policy;

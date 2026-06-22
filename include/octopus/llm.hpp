@@ -25,6 +25,17 @@ enum class SamplerProfile {
   Deterministic,
 };
 
+enum class PromptRenderer {
+  GemmaInstruction,
+};
+
+struct ModelProfile {
+  PromptRenderer prompt_renderer = PromptRenderer::GemmaInstruction;
+  std::vector<std::string> stop_strings;
+
+  static ModelProfile gemma_instruction();
+};
+
 struct GenerationOptions {
   int max_tokens = 512;
   SamplerProfile sampler_profile = SamplerProfile::Deterministic;
@@ -33,6 +44,7 @@ struct GenerationOptions {
 };
 
 struct CompletionRequest {
+  ModelProfile model_profile = ModelProfile::gemma_instruction();
   Conversation conversation;
   GenerationOptions generation;
 };

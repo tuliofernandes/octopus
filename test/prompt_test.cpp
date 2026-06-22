@@ -4,6 +4,34 @@
 
 #include <string>
 
+TEST_CASE("Gemma instruction profile renders current prompt contract",
+          "[prompt]") {
+  octopus::Conversation conversation;
+  conversation.messages.push_back(
+      {octopus::Role::System, "System policy stays internal."});
+  conversation.messages.push_back(
+      {octopus::Role::Developer, "Developer guidance stays internal."});
+  conversation.messages.push_back(
+      {octopus::Role::User, "Say hello in one short sentence."});
+
+  const auto rendered = octopus::render_prompt(
+      conversation, octopus::ModelProfile::gemma_instruction());
+
+  CHECK(rendered.text ==
+        "<start_of_turn>user\n"
+        "Octopus operating instructions:\n"
+        "[system]\n"
+        "System policy stays internal.\n"
+        "[developer]\n"
+        "Developer guidance stays internal.\n"
+        "\n"
+        "User request:\n"
+        "Say hello in one short sentence.<end_of_turn>\n"
+        "<start_of_turn>model\n");
+  REQUIRE(rendered.stop_strings.size() == 1);
+  CHECK(rendered.stop_strings[0] == "<end_of_turn>");
+}
+
 TEST_CASE("Gemma renderer folds policy into one-shot user turn",
           "[prompt]") {
   octopus::Conversation conversation;

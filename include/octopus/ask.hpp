@@ -13,6 +13,8 @@ struct AskRunResult {
 };
 
 CompletionRequest make_ask_request(const CliOptions &options);
+CompletionRequest make_ask_request(const CliOptions &options,
+                                   const ModelProfile &profile);
 
 AskRunResult run_one_shot_ask(const CliOptions &options, LlmBackend &backend,
                               std::ostream &out, std::ostream &err);
