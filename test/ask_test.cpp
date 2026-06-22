@@ -98,7 +98,9 @@ TEST_CASE("ask request accepts selected model profile policy", "[ask]") {
   const auto request = octopus::make_ask_request(options, profile);
 
   CHECK(request.model_profile.prompt_renderer ==
-        octopus::PromptRenderer::GemmaInstruction);
+        octopus::PromptRenderer::LlamaChatTemplate);
+  CHECK(request.model_profile.fallback_renderer ==
+        octopus::PromptFallback::GemmaInstruction);
   REQUIRE(request.generation.stop_strings.size() == 1);
   CHECK(request.generation.stop_strings[0] == "<custom-profile-stop>");
 }
@@ -121,7 +123,9 @@ TEST_CASE("one-shot ask prints only successful completion text", "[ask]") {
   CHECK(result.exit_code == 0);
   CHECK(backend.calls == 1);
   CHECK(backend.last_request.model_profile.prompt_renderer ==
-        octopus::PromptRenderer::GemmaInstruction);
+        octopus::PromptRenderer::LlamaChatTemplate);
+  CHECK(backend.last_request.model_profile.fallback_renderer ==
+        octopus::PromptFallback::GemmaInstruction);
   REQUIRE(backend.last_request.generation.stop_strings.size() == 1);
   CHECK(backend.last_request.generation.stop_strings[0] == "<end_of_turn>");
   CHECK(backend.last_request.conversation.messages.back().content ==

@@ -28,13 +28,22 @@ enum class SamplerProfile {
 
 enum class PromptRenderer {
   GemmaInstruction,
+  LlamaChatTemplate,
+};
+
+enum class PromptFallback {
+  None,
+  GemmaInstruction,
 };
 
 struct ModelProfile {
   PromptRenderer prompt_renderer = PromptRenderer::GemmaInstruction;
+  PromptFallback fallback_renderer = PromptFallback::None;
   std::vector<std::string> stop_strings;
+  bool fold_policy_messages = false;
 
   static ModelProfile gemma_instruction();
+  static ModelProfile llama_chat_template();
 };
 
 struct GenerationOptions {

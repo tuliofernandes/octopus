@@ -15,6 +15,12 @@
 namespace octopus {
 namespace {
 
+struct BackendPromptResult {
+  RenderedPrompt rendered;
+  CompletionResult error;
+  bool ok = true;
+};
+
 CompletionResult backend_error(std::string message) {
   CompletionResult result;
   result.finish_reason = FinishReason::BackendError;
@@ -92,6 +98,102 @@ bool failed(const CompletionResult &result) {
   return result.finish_reason == FinishReason::BackendError;
 }
 
+bool has_gemma_fallback(const ModelProfile &profile) {
+  return profile.fallback_renderer == PromptFallback::GemmaInstruction;
+}
+
+BackendPromptResult prompt_error(std::string message) {
+  BackendPromptResult result;
+  result.ok = false;
+  result.error = backend_error(std::move(message));
+  return result;
+}
+
+BackendPromptResult manual_prompt(const CompletionRequest &request) {
+  BackendPromptResult result;
+  result.rendered = render_prompt(request.conversation, request.model_profile);
+  return result;
+}
+
+BackendPromptResult apply_model_chat_template(const llama_model *model,
+                                              const CompletionRequest &request) {
+  const char *chat_template = llama_model_chat_template(model, nullptr);
+  if (chat_template == nullptr) {
+    if (has_gemma_fallback(request.model_profile)) {
+      return manual_prompt(request);
+    }
+    return prompt_error(
+        "model chat template metadata is unavailable and no prompt fallback is configured");
+  }
+
+  const auto template_messages =
+      make_chat_template_messages(request.conversation, request.model_profile);
+  std::vector<llama_chat_message> chat;
+  chat.reserve(template_messages.messages.size());
+  for (const auto &message : template_messages.messages) {
+    chat.push_back({message.role, message.content});
+  }
+
+  int32_t formatted_size =
+      llama_chat_apply_template(chat_template, chat.data(), chat.size(), true,
+                                nullptr, 0);
+  if (formatted_size < 0) {
+    if (has_gemma_fallback(request.model_profile)) {
+      return manual_prompt(request);
+    }
+    return prompt_error("model chat template is not supported by llama.cpp");
+  }
+
+  std::vector<char> buffer(static_cast<std::size_t>(formatted_size));
+  int32_t actual = llama_chat_apply_template(
+      chat_template, chat.data(), chat.size(), true,
+      buffer.empty() ? nullptr : buffer.data(),
+      static_cast<int32_t>(buffer.size()));
+  if (actual < 0) {
+    if (has_gemma_fallback(request.model_profile)) {
+      return manual_prompt(request);
+    }
+    return prompt_error("failed to apply model chat template");
+  }
+
+  if (static_cast<std::size_t>(actual) > buffer.size()) {
+    if (!fits_int32(static_cast<std::size_t>(actual))) {
+      return prompt_error("rendered chat template is too large");
+    }
+    buffer.resize(static_cast<std::size_t>(actual));
+    actual = llama_chat_apply_template(
+        chat_template, chat.data(), chat.size(), true,
+        buffer.empty() ? nullptr : buffer.data(),
+        static_cast<int32_t>(buffer.size()));
+  }
+
+  if (actual < 0 || static_cast<std::size_t>(actual) > buffer.size()) {
+    if (has_gemma_fallback(request.model_profile)) {
+      return manual_prompt(request);
+    }
+    return prompt_error("failed to apply model chat template");
+  }
+
+  BackendPromptResult result;
+  if (actual > 0) {
+    result.rendered.text.assign(buffer.data(), static_cast<std::size_t>(actual));
+  }
+  result.rendered.stop_strings = request.model_profile.stop_strings;
+  return result;
+}
+
+BackendPromptResult render_backend_prompt(const llama_model *model,
+                                          const CompletionRequest &request) {
+  switch (request.model_profile.prompt_renderer) {
+  case PromptRenderer::GemmaInstruction:
+    return manual_prompt(request);
+  case PromptRenderer::LlamaChatTemplate:
+    return apply_model_chat_template(model, request);
+  }
+
+  return manual_prompt(request);
+}
+
 } // namespace
 
 struct LlamaCppBackend::Impl {
@@ -116,18 +218,21 @@ struct LlamaCppBackend::Impl {
       return backend_error(validation.error);
     }
 
-    const auto rendered =
-        render_prompt(request.conversation, request.model_profile);
+    if (model == nullptr) {
+      return backend_error("unable to load model: " + options.model_path);
+    }
+
+    auto prompt_result = render_backend_prompt(model.get(), request);
+    if (!prompt_result.ok) {
+      return prompt_result.error;
+    }
+    const auto &rendered = prompt_result.rendered;
     std::vector<std::string> stop_strings = rendered.stop_strings;
     stop_strings.insert(stop_strings.end(),
                         request.generation.stop_strings.begin(),
                         request.generation.stop_strings.end());
     StopDetector stop_detector(std::move(stop_strings));
     LoopDetector loop_detector;
-
-    if (model == nullptr) {
-      return backend_error("unable to load model: " + options.model_path);
-    }
 
     const llama_vocab *vocab = llama_model_get_vocab(model.get());
     if (vocab == nullptr) {
