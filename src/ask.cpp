@@ -11,6 +11,9 @@ constexpr const char *kSystemPrompt =
 constexpr const char *kDeveloperPrompt =
     "Answer the user's request directly. If you are unsure, say so.";
 
+constexpr int kAskRepeatLastN = 64;
+constexpr float kAskRepeatPenalty = 1.05F;
+
 bool completion_failed(const CompletionResult &completion) {
   return completion.finish_reason == FinishReason::BackendError;
 }
@@ -32,6 +35,10 @@ CompletionRequest make_ask_request(const CliOptions &options,
   request.generation.sampler_profile = SamplerProfile::Deterministic;
   request.generation.quiet = options.quiet;
   request.generation.stop_strings = profile.stop_strings;
+  request.generation.repeat_last_n = kAskRepeatLastN;
+  request.generation.repeat_penalty = kAskRepeatPenalty;
+  request.generation.frequency_penalty = 0.0F;
+  request.generation.presence_penalty = 0.0F;
   return request;
 }
 

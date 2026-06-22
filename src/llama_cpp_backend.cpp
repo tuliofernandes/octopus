@@ -111,12 +111,9 @@ struct LlamaCppBackend::Impl {
   }
 
   CompletionResult complete(const CompletionRequest &request) {
-    if (model == nullptr) {
-      return backend_error("unable to load model: " + options.model_path);
-    }
-
-    if (request.generation.max_tokens <= 0) {
-      return backend_error("max_tokens must be positive");
+    const auto validation = validate_generation_options(request.generation);
+    if (!validation.ok) {
+      return backend_error(validation.error);
     }
 
     const auto rendered =
@@ -126,6 +123,10 @@ struct LlamaCppBackend::Impl {
                         request.generation.stop_strings.begin(),
                         request.generation.stop_strings.end());
     StopDetector stop_detector(std::move(stop_strings));
+
+    if (model == nullptr) {
+      return backend_error("unable to load model: " + options.model_path);
+    }
 
     const llama_vocab *vocab = llama_model_get_vocab(model.get());
     if (vocab == nullptr) {
@@ -162,6 +163,19 @@ struct LlamaCppBackend::Impl {
         llama_sampler_chain_init(sampler_params), llama_sampler_free);
     if (sampler == nullptr) {
       return backend_error("failed to create llama sampler");
+    }
+    if (repeat_penalty_enabled(request.generation)) {
+      std::unique_ptr<llama_sampler, decltype(&llama_sampler_free)> penalties(
+          llama_sampler_init_penalties(
+              request.generation.repeat_last_n,
+              request.generation.repeat_penalty,
+              request.generation.frequency_penalty,
+              request.generation.presence_penalty),
+          llama_sampler_free);
+      if (penalties == nullptr) {
+        return backend_error("failed to create penalties sampler");
+      }
+      llama_sampler_chain_add(sampler.get(), penalties.release());
     }
     std::unique_ptr<llama_sampler, decltype(&llama_sampler_free)> greedy(
         llama_sampler_init_greedy(), llama_sampler_free);

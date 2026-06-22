@@ -48,8 +48,43 @@ TEST_CASE("ask options build a message-shaped completion request", "[ask]") {
   CHECK(request.generation.max_tokens == 128);
   CHECK(request.generation.sampler_profile ==
         octopus::SamplerProfile::Deterministic);
+  CHECK(request.generation.repeat_last_n == 64);
+  CHECK(request.generation.repeat_penalty == 1.05F);
+  CHECK(request.generation.frequency_penalty == 0.0F);
+  CHECK(request.generation.presence_penalty == 0.0F);
+  CHECK(octopus::repeat_penalty_enabled(request.generation));
   REQUIRE(request.generation.stop_strings.size() == 1);
   CHECK(request.generation.stop_strings[0] == "<end_of_turn>");
+}
+
+TEST_CASE("generation options validate repeat penalty policy", "[ask]") {
+  octopus::GenerationOptions options;
+  CHECK(octopus::validate_generation_options(options).ok);
+
+  options.repeat_penalty = 1.05F;
+  auto validation = octopus::validate_generation_options(options);
+  CHECK_FALSE(validation.ok);
+  CHECK(validation.error.find("repeat_last_n") != std::string::npos);
+
+  options.repeat_last_n = 64;
+  CHECK(octopus::validate_generation_options(options).ok);
+
+  options.repeat_penalty = 0.95F;
+  validation = octopus::validate_generation_options(options);
+  CHECK_FALSE(validation.ok);
+  CHECK(validation.error.find("repeat_penalty") != std::string::npos);
+
+  options.repeat_penalty = 1.05F;
+  options.frequency_penalty = -0.1F;
+  validation = octopus::validate_generation_options(options);
+  CHECK_FALSE(validation.ok);
+  CHECK(validation.error.find("frequency_penalty") != std::string::npos);
+
+  options.frequency_penalty = 0.0F;
+  options.presence_penalty = -0.1F;
+  validation = octopus::validate_generation_options(options);
+  CHECK_FALSE(validation.ok);
+  CHECK(validation.error.find("presence_penalty") != std::string::npos);
 }
 
 TEST_CASE("ask request accepts selected model profile policy", "[ask]") {
