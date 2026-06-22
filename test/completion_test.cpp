@@ -44,3 +44,36 @@ TEST_CASE("stop detector deduplicates stop strings", "[completion]") {
   CHECK(detector.stop_strings()[0] == "<stop>");
   CHECK(detector.stop_strings()[1] == "<other>");
 }
+
+TEST_CASE("loop detector catches repeated identical short lines",
+          "[completion]") {
+  octopus::LoopDetector detector;
+
+  CHECK_FALSE(detector.append("ready\n"));
+  CHECK_FALSE(detector.append("ready\n"));
+  CHECK_FALSE(detector.append("ready\n"));
+
+  CHECK(detector.append("ready\n"));
+  CHECK(detector.trim_size() == 6);
+}
+
+TEST_CASE("loop detector catches repeated n-gram windows conservatively",
+          "[completion]") {
+  octopus::LoopDetector detector;
+
+  CHECK_FALSE(detector.append("alpha beta gamma "));
+  CHECK_FALSE(detector.append("alpha beta gamma "));
+  CHECK_FALSE(detector.append("alpha beta gamma "));
+
+  CHECK(detector.append("alpha beta gamma "));
+  CHECK(detector.trim_size() == 17);
+}
+
+TEST_CASE("loop detector ignores normal short answers", "[completion]") {
+  octopus::LoopDetector detector;
+
+  CHECK_FALSE(detector.append("Ready."));
+  CHECK_FALSE(detector.append(" The command completed successfully."));
+  CHECK_FALSE(detector.detected());
+  CHECK(detector.trim_size() == detector.generated_size());
+}

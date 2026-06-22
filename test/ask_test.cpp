@@ -130,6 +130,28 @@ TEST_CASE("one-shot ask prints only successful completion text", "[ask]") {
   CHECK(err.str().empty());
 }
 
+TEST_CASE("one-shot ask treats loop detection as a successful completion",
+          "[ask]") {
+  octopus::CompletionResult completion;
+  completion.text = "Useful prefix.";
+  completion.finish_reason = octopus::FinishReason::LoopDetected;
+  completion.generated_tokens = 12;
+  FakeBackend backend(completion);
+
+  octopus::CliOptions options;
+  options.mode = octopus::CliMode::Ask;
+  options.prompt = "Say hello";
+
+  std::ostringstream out;
+  std::ostringstream err;
+  const auto result = octopus::run_one_shot_ask(options, backend, out, err);
+
+  CHECK(result.exit_code == 0);
+  CHECK(backend.calls == 1);
+  CHECK(out.str() == "Useful prefix.\n");
+  CHECK(err.str().empty());
+}
+
 TEST_CASE("one-shot ask reports backend errors on stderr", "[ask]") {
   octopus::CompletionResult completion;
   completion.finish_reason = octopus::FinishReason::BackendError;

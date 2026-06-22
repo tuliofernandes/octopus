@@ -123,6 +123,7 @@ struct LlamaCppBackend::Impl {
                         request.generation.stop_strings.begin(),
                         request.generation.stop_strings.end());
     StopDetector stop_detector(std::move(stop_strings));
+    LoopDetector loop_detector;
 
     if (model == nullptr) {
       return backend_error("unable to load model: " + options.model_path);
@@ -214,6 +215,12 @@ struct LlamaCppBackend::Impl {
 
       if (stop_detector.append(piece)) {
         result.finish_reason = FinishReason::Stop;
+        break;
+      }
+
+      if (loop_detector.append(piece)) {
+        stop_detector.truncate(loop_detector.trim_size());
+        result.finish_reason = FinishReason::LoopDetected;
         break;
       }
 

@@ -95,6 +95,7 @@ enum class FinishReason {
   Stop,
   MaxTokens,
   EndOfGeneration,
+  LoopDetected,
   BackendError,
 };
 
