@@ -3,8 +3,11 @@
 #include "octopus/completion.hpp"
 #include "octopus/prompt.hpp"
 
+#include "ggml-backend.h"
 #include "llama.h"
 
+#include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -100,6 +103,54 @@ bool failed(const CompletionResult &result) {
 
 bool has_gemma_fallback(const ModelProfile &profile) {
   return profile.fallback_renderer == PromptFallback::GemmaInstruction;
+}
+
+std::string lowercase(std::string text) {
+  std::transform(text.begin(), text.end(), text.begin(), [](unsigned char c) {
+    return static_cast<char>(std::tolower(c));
+  });
+  return text;
+}
+
+bool contains(const std::string &text, const std::string &needle) {
+  return text.find(needle) != std::string::npos;
+}
+
+bool looks_like_integrated_amd_gpu(const std::string &description) {
+  const auto lower = lowercase(description);
+  return contains(lower, "ryzen") || contains(lower, "integrated") ||
+         contains(lower, "radeon graphics");
+}
+
+std::vector<ggml_backend_dev_t> select_single_gpu_device() {
+  ggml_backend_dev_t selected = nullptr;
+  std::size_t selected_free = 0;
+
+  for (std::size_t index = 0; index < ggml_backend_dev_count(); ++index) {
+    ggml_backend_dev_t device = ggml_backend_dev_get(index);
+    if (ggml_backend_dev_type(device) != GGML_BACKEND_DEVICE_TYPE_GPU) {
+      continue;
+    }
+
+    const std::string description = ggml_backend_dev_description(device);
+    if (looks_like_integrated_amd_gpu(description)) {
+      continue;
+    }
+
+    std::size_t free = 0;
+    std::size_t total = 0;
+    ggml_backend_dev_memory(device, &free, &total);
+    if (selected == nullptr || free > selected_free) {
+      selected = device;
+      selected_free = free;
+    }
+  }
+
+  if (selected == nullptr) {
+    return {};
+  }
+
+  return {selected, nullptr};
 }
 
 BackendPromptResult prompt_error(std::string message) {
@@ -208,6 +259,14 @@ struct LlamaCppBackend::Impl {
 
     llama_model_params model_params = llama_model_default_params();
     model_params.n_gpu_layers = options.n_gpu_layers;
+    selected_devices = select_single_gpu_device();
+    if (!selected_devices.empty()) {
+      model_params.devices = selected_devices.data();
+      model_params.split_mode = LLAMA_SPLIT_MODE_NONE;
+      model_params.main_gpu = 0;
+    } else {
+      model_params.n_gpu_layers = 0;
+    }
     model.reset(llama_model_load_from_file(options.model_path.c_str(),
                                            model_params));
   }
@@ -337,6 +396,7 @@ struct LlamaCppBackend::Impl {
   }
 
   LlamaCppBackendOptions options;
+  std::vector<ggml_backend_dev_t> selected_devices;
   std::unique_ptr<llama_model, decltype(&llama_model_free)> model;
 };
 

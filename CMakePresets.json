@@ -61,7 +61,8 @@
             "binaryDir": "${sourceDir}/build/local-amd-hip-debug",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
-                "GGML_HIP": "ON"
+                "GGML_HIP": "ON",
+                "CMAKE_HIP_FLAGS_DEBUG": "-g -O2"
             }
         },
         {

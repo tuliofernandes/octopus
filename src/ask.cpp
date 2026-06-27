@@ -6,7 +6,7 @@ namespace octopus {
 namespace {
 
 constexpr const char *kSystemPrompt =
-    "You are Octopus, a concise CLI AI agent for UNIX/Linux.";
+    "You are Octopus, an AI agent for UNIX.";
 
 constexpr const char *kDeveloperPrompt =
     "Answer the user's request directly. If you are unsure, say so.";
