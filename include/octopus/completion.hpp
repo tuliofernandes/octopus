@@ -7,6 +7,10 @@
 
 namespace octopus {
 
+/**
+ * Accumulates decoded token pieces and stops when the visible text ends with a
+ * configured boundary. It trims the boundary so users do not see model syntax.
+ */
 class StopDetector {
 public:
   explicit StopDetector(std::vector<std::string> stop_strings);
@@ -22,6 +26,10 @@ private:
   std::string text_;
 };
 
+/**
+ * Detects a small set of obvious repetition failures. This is not "AI quality"
+ * scoring; it is a practical safety net for raw decoding loops.
+ */
 class LoopDetector {
 public:
   bool append(std::string_view chunk);

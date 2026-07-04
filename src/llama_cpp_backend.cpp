@@ -18,6 +18,10 @@
 namespace octopus {
 namespace {
 
+/**
+ * BackendPromptResult carries either model-facing prompt text or a harness
+ * error. Keeping prompt errors in CompletionResult keeps one error path.
+ */
 struct BackendPromptResult {
   RenderedPrompt rendered;
   CompletionResult error;
@@ -31,6 +35,10 @@ CompletionResult backend_error(std::string message) {
   return result;
 }
 
+/**
+ * llama.cpp APIs use int32_t sizes in several places. Check before casting so a
+ * huge prompt cannot wrap into a dangerous native call.
+ */
 bool fits_int32(std::size_t value) {
   return value <= static_cast<std::size_t>(std::numeric_limits<int32_t>::max());
 }
@@ -48,6 +56,10 @@ CompletionResult tokenize_prompt(const llama_vocab *vocab,
   }
 
   const auto prompt_size = static_cast<int32_t>(prompt.size());
+  /**
+   * First call asks llama.cpp how many tokens are needed. The negative return
+   * value is a sizing convention, not an error.
+   */
   const int32_t sized =
       llama_tokenize(vocab, prompt.c_str(), prompt_size, nullptr, 0, true, true);
   if (sized == std::numeric_limits<int32_t>::min() || sized >= 0) {
@@ -60,6 +72,10 @@ CompletionResult tokenize_prompt(const llama_vocab *vocab,
   }
 
   tokens.resize(static_cast<std::size_t>(token_count));
+  /**
+   * Second call fills the buffer. This two-step pattern avoids guessing token
+   * capacity and keeps ownership in std::vector.
+   */
   const int32_t actual = llama_tokenize(
       vocab, prompt.c_str(), prompt_size, tokens.data(), token_count, true, true);
   if (actual != token_count) {
@@ -73,6 +89,10 @@ CompletionResult tokenize_prompt(const llama_vocab *vocab,
 CompletionResult token_to_piece(const llama_vocab *vocab, llama_token token,
                                 std::string &piece) {
   std::vector<char> buffer(128);
+  /**
+   * Token pieces are byte strings, not necessarily whole words. Stop and loop
+   * detectors therefore work on accumulated text across pieces.
+   */
   int32_t written = llama_token_to_piece(
       vocab, token, buffer.data(), static_cast<int32_t>(buffer.size()), 0, true);
 
@@ -123,6 +143,11 @@ bool looks_like_integrated_amd_gpu(const std::string &description) {
 }
 
 std::vector<ggml_backend_dev_t> select_single_gpu_device() {
+  /**
+   * On the local AMD host, ROCm can expose both an integrated GPU and the
+   * discrete Radeon. Select one discrete-looking GPU before model load so
+   * llama.cpp does not split work onto a weaker or unstable device.
+   */
   ggml_backend_dev_t selected = nullptr;
   std::size_t selected_free = 0;
 
@@ -140,6 +165,10 @@ std::vector<ggml_backend_dev_t> select_single_gpu_device() {
     std::size_t free = 0;
     std::size_t total = 0;
     ggml_backend_dev_memory(device, &free, &total);
+    /**
+     * Free memory is a simple proxy for "best available offload target" among
+     * the remaining discrete-looking GPU devices.
+     */
     if (selected == nullptr || free > selected_free) {
       selected = device;
       selected_free = free;
@@ -147,9 +176,14 @@ std::vector<ggml_backend_dev_t> select_single_gpu_device() {
   }
 
   if (selected == nullptr) {
+    /**
+     * Returning no device intentionally forces CPU execution below. That is
+     * slower, but safer than accidentally selecting the integrated GPU.
+     */
     return {};
   }
 
+  // llama.cpp expects a null-terminated device list.
   return {selected, nullptr};
 }
 
@@ -170,6 +204,10 @@ BackendPromptResult apply_model_chat_template(const llama_model *model,
                                               const CompletionRequest &request) {
   const char *chat_template = llama_model_chat_template(model, nullptr);
   if (chat_template == nullptr) {
+    /**
+     * Metadata templates are preferred, but a known manual fallback keeps the
+     * current Gemma path usable with older or sparse GGUF files.
+     */
     if (has_gemma_fallback(request.model_profile)) {
       return manual_prompt(request);
     }
@@ -185,6 +223,10 @@ BackendPromptResult apply_model_chat_template(const llama_model *model,
     chat.push_back({message.role, message.content});
   }
 
+  /**
+   * Ask llama.cpp to render according to the model's own GGUF chat template.
+   * This is model-specific syntax without hardcoding that syntax in Octopus.
+   */
   int32_t formatted_size =
       llama_chat_apply_template(chat_template, chat.data(), chat.size(), true,
                                 nullptr, 0);
@@ -196,6 +238,10 @@ BackendPromptResult apply_model_chat_template(const llama_model *model,
   }
 
   std::vector<char> buffer(static_cast<std::size_t>(formatted_size));
+  /**
+   * llama_chat_apply_template can report that the buffer was too small. The
+   * retry below treats that as a normal growth path.
+   */
   int32_t actual = llama_chat_apply_template(
       chat_template, chat.data(), chat.size(), true,
       buffer.empty() ? nullptr : buffer.data(),
@@ -235,6 +281,10 @@ BackendPromptResult apply_model_chat_template(const llama_model *model,
 
 BackendPromptResult render_backend_prompt(const llama_model *model,
                                           const CompletionRequest &request) {
+  /**
+   * Metadata rendering needs the loaded llama_model, so final renderer
+   * selection lives in this backend rather than pure prompt.cpp.
+   */
   switch (request.model_profile.prompt_renderer) {
   case PromptRenderer::GemmaInstruction:
     return manual_prompt(request);
@@ -259,8 +309,15 @@ struct LlamaCppBackend::Impl {
 
     llama_model_params model_params = llama_model_default_params();
     model_params.n_gpu_layers = options.n_gpu_layers;
+    /**
+     * Device selection is done before model load because llama.cpp decides
+     * tensor placement while loading the GGUF.
+     */
     selected_devices = select_single_gpu_device();
     if (!selected_devices.empty()) {
+      /**
+       * Single-device, no-split offload keeps local HIP behavior predictable.
+       */
       model_params.devices = selected_devices.data();
       model_params.split_mode = LLAMA_SPLIT_MODE_NONE;
       model_params.main_gpu = 0;
@@ -272,6 +329,10 @@ struct LlamaCppBackend::Impl {
   }
 
   CompletionResult complete(const CompletionRequest &request) {
+    /**
+     * The adapter validates generic harness policy before translating it to
+     * llama.cpp objects.
+     */
     const auto validation = validate_generation_options(request.generation);
     if (!validation.ok) {
       return backend_error(validation.error);
@@ -286,6 +347,10 @@ struct LlamaCppBackend::Impl {
       return prompt_result.error;
     }
     const auto &rendered = prompt_result.rendered;
+    /**
+     * Prompt-format stops and caller-requested stops are both output
+     * boundaries, so they are enforced by the same detector.
+     */
     std::vector<std::string> stop_strings = rendered.stop_strings;
     stop_strings.insert(stop_strings.end(),
                         request.generation.stop_strings.begin(),
@@ -307,11 +372,18 @@ struct LlamaCppBackend::Impl {
     const auto context_tokens =
         prompt_tokens.size() +
         static_cast<std::size_t>(request.generation.max_tokens);
+    /**
+     * Context must fit the prompt plus the requested completion budget.
+     */
     if (!fits_uint32(context_tokens) || !fits_int32(prompt_tokens.size())) {
       return backend_error("requested context is too large");
     }
 
     llama_context_params ctx_params = llama_context_default_params();
+    /**
+     * This one-shot context is sized exactly for the current request. A future
+     * chat session will likely keep context alive across turns.
+     */
     ctx_params.n_ctx = static_cast<uint32_t>(context_tokens);
     ctx_params.n_batch = static_cast<uint32_t>(prompt_tokens.size());
     ctx_params.no_perf = options.quiet || request.generation.quiet;
@@ -330,6 +402,10 @@ struct LlamaCppBackend::Impl {
       return backend_error("failed to create llama sampler");
     }
     if (repeat_penalty_enabled(request.generation)) {
+      /**
+       * Penalties run before greedy selection, nudging the token distribution
+       * away from recent repetition while keeping deterministic output.
+       */
       std::unique_ptr<llama_sampler, decltype(&llama_sampler_free)> penalties(
           llama_sampler_init_penalties(
               request.generation.repeat_last_n,
@@ -354,16 +430,27 @@ struct LlamaCppBackend::Impl {
                             static_cast<int32_t>(prompt_tokens.size()));
 
     CompletionResult result;
+    /**
+     * MaxTokens is the default until a more specific stop condition occurs.
+     */
     result.finish_reason = FinishReason::MaxTokens;
 
     llama_token sampled_token = LLAMA_TOKEN_NULL;
     while (result.generated_tokens < request.generation.max_tokens) {
+      /**
+       * The first decode evaluates the full prompt. Later iterations evaluate
+       * the single token sampled in the previous loop.
+       */
       if (llama_decode(ctx.get(), batch)) {
         return backend_error("failed to evaluate llama batch");
       }
 
       sampled_token = llama_sampler_sample(sampler.get(), ctx.get(), -1);
 
+      /**
+       * EOG is the model's native "I am done" signal. StopDetector handles
+       * textual protocol stops such as chat turn delimiters.
+       */
       if (llama_vocab_is_eog(vocab, sampled_token)) {
         result.finish_reason = FinishReason::EndOfGeneration;
         break;
@@ -377,17 +464,29 @@ struct LlamaCppBackend::Impl {
 
       ++result.generated_tokens;
 
+      /**
+       * Stop detection happens before loop detection so a valid end-of-turn
+       * marker wins over repetition heuristics.
+       */
       if (stop_detector.append(piece)) {
         result.finish_reason = FinishReason::Stop;
         break;
       }
 
       if (loop_detector.append(piece)) {
+        /**
+         * LoopDetected is still a usable completion: trim repeated suffixes and
+         * let the caller print the cleaned answer.
+         */
         stop_detector.truncate(loop_detector.trim_size());
         result.finish_reason = FinishReason::LoopDetected;
         break;
       }
 
+      /**
+       * Feed the sampled token back into the next decode step. This is the raw
+       * autoregressive loop: predict token, append token, predict next token.
+       */
       batch = llama_batch_get_one(&sampled_token, 1);
     }
 

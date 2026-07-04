@@ -37,6 +37,10 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  /**
+   * main wires CLI to the harness: parse user intent, build the concrete
+   * backend, then let run_one_shot_ask handle request construction and output.
+   */
   octopus::LlamaCppBackend backend({options.model_path, options.n_gpu_layers,
                                     options.quiet});
   return octopus::run_one_shot_ask(options, backend, std::cout, std::cerr)
