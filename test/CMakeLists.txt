@@ -5,6 +5,7 @@ include(Catch)
 add_executable(octopus_tests)
 target_sources(octopus_tests PRIVATE
         ask_test.cpp
+        chat_test.cpp
         cli_test.cpp
         completion_test.cpp
         prompt_test.cpp

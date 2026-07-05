@@ -32,8 +32,15 @@ CompletionRequest make_ask_request(const CliOptions &options) {
   return make_ask_request(options, ModelProfile::gemma_instruction());
 }
 
-CompletionRequest make_ask_request(const CliOptions &options,
-                                   const ModelProfile &profile) {
+CompletionRequest make_conversation_request(const CliOptions &options,
+                                            const Conversation &conversation) {
+  return make_conversation_request(options, conversation,
+                                   ModelProfile::gemma_instruction());
+}
+
+CompletionRequest make_conversation_request(const CliOptions &options,
+                                            const Conversation &conversation,
+                                            const ModelProfile &profile) {
   CompletionRequest request;
   request.model_profile = profile;
   /**
@@ -42,10 +49,12 @@ CompletionRequest make_ask_request(const CliOptions &options,
    */
   request.conversation.messages.push_back({Role::System, kSystemPrompt});
   request.conversation.messages.push_back({Role::Developer, kDeveloperPrompt});
-  request.conversation.messages.push_back({Role::User, options.prompt});
+  request.conversation.messages.insert(request.conversation.messages.end(),
+                                       conversation.messages.begin(),
+                                       conversation.messages.end());
   /**
-   * CLI ask is deterministic and conservative for now: useful for testing,
-   * reproducibility, and reducing small-model repetition.
+   * CLI requests are deterministic and conservative for now: useful for
+   * testing, reproducibility, and reducing small-model repetition.
    */
   request.generation.max_tokens = options.n_predict;
   request.generation.sampler_profile = SamplerProfile::Deterministic;
@@ -56,6 +65,13 @@ CompletionRequest make_ask_request(const CliOptions &options,
   request.generation.frequency_penalty = 0.0F;
   request.generation.presence_penalty = 0.0F;
   return request;
+}
+
+CompletionRequest make_ask_request(const CliOptions &options,
+                                   const ModelProfile &profile) {
+  Conversation conversation;
+  conversation.messages.push_back({Role::User, options.prompt});
+  return make_conversation_request(options, conversation, profile);
 }
 
 AskRunResult run_one_shot_ask(const CliOptions &options, LlmBackend &backend,

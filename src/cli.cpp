@@ -19,7 +19,7 @@ std::string help_text() {
          << "       " << kProgramName << " ask <prompt...>\n\n"
          << "Modes:\n"
          << "  " << kProgramName
-         << "                  Open the interactive terminal UI (coming soon)\n"
+         << "                  Start a pure CLI multi-turn chat\n"
          << "  " << kProgramName
          << " ask <prompt...>  Ask one question and print one answer\n\n"
          << "Options:\n"

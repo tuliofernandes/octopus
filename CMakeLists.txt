@@ -23,7 +23,11 @@ target_include_directories(octopus_cli PUBLIC include)
 target_compile_features(octopus_cli PUBLIC cxx_std_17)
 target_compile_options(octopus_cli PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
-add_library(octopus_llm STATIC src/ask.cpp src/completion.cpp src/prompt.cpp)
+add_library(octopus_llm STATIC
+        src/ask.cpp
+        src/chat.cpp
+        src/completion.cpp
+        src/prompt.cpp)
 target_include_directories(octopus_llm PUBLIC include)
 target_compile_features(octopus_llm PUBLIC cxx_std_17)
 target_link_libraries(octopus_llm PUBLIC octopus_cli)
