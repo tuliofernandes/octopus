@@ -5,8 +5,7 @@
 #include <string>
 #include <vector>
 
-TEST_CASE("CLI defaults to future interactive mode without model flags",
-          "[cli]") {
+TEST_CASE("CLI defaults to interactive chat mode without model flags", "[cli]") {
   const auto result = octopus::parse_cli({"octo"});
 
   REQUIRE(result.ok);
@@ -41,7 +40,12 @@ TEST_CASE("CLI help exposes modes instead of low-level runtime knobs", "[cli]") 
   CHECK(result.ok);
   CHECK(result.exit_code == 0);
   CHECK(result.help.find("Usage: octo") != std::string::npos);
+  CHECK(result.help.find("pure CLI multi-turn chat") != std::string::npos);
   CHECK(result.help.find("octo ask") != std::string::npos);
+  CHECK(result.help.find("coming soon") == std::string::npos);
+  CHECK(result.help.find("curses") == std::string::npos);
+  CHECK(result.help.find("ncurses") == std::string::npos);
+  CHECK(result.help.find("TUI") == std::string::npos);
   CHECK(result.help.find("--model") == std::string::npos);
   CHECK(result.help.find("--n_predict") == std::string::npos);
   CHECK(result.help.find("--n_gpu_layers") == std::string::npos);

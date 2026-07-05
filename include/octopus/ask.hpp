@@ -14,6 +14,16 @@ struct AskRunResult {
 };
 
 /**
+ * Build the generic harness request for an accumulated CLI conversation. The
+ * overload with a profile is mainly for tests and future model selection.
+ */
+CompletionRequest make_conversation_request(const CliOptions &options,
+                                            const Conversation &conversation);
+CompletionRequest make_conversation_request(const CliOptions &options,
+                                            const Conversation &conversation,
+                                            const ModelProfile &profile);
+
+/**
  * Build the generic harness request for CLI ask mode. The overload with a
  * profile is mainly for tests and future model selection.
  */
