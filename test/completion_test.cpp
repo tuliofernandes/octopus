@@ -45,6 +45,35 @@ TEST_CASE("stop detector deduplicates stop strings", "[completion]") {
   CHECK(detector.stop_strings()[1] == "<other>");
 }
 
+TEST_CASE("stop-safe text buffer holds possible stop suffixes",
+          "[completion]") {
+  octopus::StopSafeTextBuffer buffer({"<stop>"});
+
+  CHECK(buffer.append("abcd") == "");
+  CHECK(buffer.append("ef") == "a");
+  CHECK(buffer.flush("abcdef") == "bcdef");
+}
+
+TEST_CASE("stop-safe text buffer does not flush stop markers",
+          "[completion]") {
+  octopus::StopSafeTextBuffer buffer({"<stop>"});
+
+  std::string visible;
+  visible += buffer.append("answer<st");
+  visible += buffer.flush("answer");
+
+  CHECK(visible == "answer");
+}
+
+TEST_CASE("stop-safe text buffer streams immediately without stops",
+          "[completion]") {
+  octopus::StopSafeTextBuffer buffer({});
+
+  CHECK(buffer.append("alpha") == "alpha");
+  CHECK(buffer.append(" beta") == " beta");
+  CHECK(buffer.flush("alpha beta") == "");
+}
+
 TEST_CASE("loop detector catches repeated identical short lines",
           "[completion]") {
   octopus::LoopDetector detector;

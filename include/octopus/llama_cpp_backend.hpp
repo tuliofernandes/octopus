@@ -32,6 +32,8 @@ public:
   LlamaCppBackend &operator=(LlamaCppBackend &&) noexcept;
 
   CompletionResult complete(const CompletionRequest &request) override;
+  CompletionResult complete_streaming(const CompletionRequest &request,
+                                      CompletionSink &sink) override;
 
 private:
   struct Impl;

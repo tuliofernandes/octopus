@@ -1,4 +1,5 @@
 #include "octopus/ask.hpp"
+#include "octopus/chat.hpp"
 #include "octopus/cli.hpp"
 #include "octopus/llama_cpp_backend.hpp"
 
@@ -32,17 +33,18 @@ int main(int argc, char **argv) {
   }
 
   const auto &options = cli.options;
-  if (options.mode == octopus::CliMode::Interactive) {
-    std::cerr << "octo interactive mode is not available yet" << std::endl;
-    return 1;
-  }
-
   /**
-   * main wires CLI to the harness: parse user intent, build the concrete
-   * backend, then let run_one_shot_ask handle request construction and output.
+   * main wires CLI to the harness: parse user intent, build one concrete
+   * backend, then let mode runners handle request construction and output.
    */
   octopus::LlamaCppBackend backend({options.model_path, options.n_gpu_layers,
                                     options.quiet});
+  if (options.mode == octopus::CliMode::Interactive) {
+    return octopus::run_cli_chat(options, backend, std::cin, std::cout,
+                                 std::cerr)
+        .exit_code;
+  }
+
   return octopus::run_one_shot_ask(options, backend, std::cout, std::cerr)
       .exit_code;
 }

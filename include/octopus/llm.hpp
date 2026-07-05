@@ -159,6 +159,16 @@ struct CompletionResult {
   std::string error;
 };
 
+struct CompletionChunk {
+  std::string text;
+};
+
+class CompletionSink {
+public:
+  virtual ~CompletionSink() = default;
+  virtual void on_text(const CompletionChunk &chunk) = 0;
+};
+
 /**
  * LlmBackend is the seam between product behavior and a concrete inference
  * engine. Tests can use fakes; production currently uses llama.cpp.
@@ -167,6 +177,15 @@ class LlmBackend {
 public:
   virtual ~LlmBackend() = default;
   virtual CompletionResult complete(const CompletionRequest &request) = 0;
+  virtual CompletionResult complete_streaming(const CompletionRequest &request,
+                                              CompletionSink &sink) {
+    CompletionResult result = complete(request);
+    if (result.finish_reason != FinishReason::BackendError &&
+        !result.text.empty()) {
+      sink.on_text({result.text});
+    }
+    return result;
+  }
 };
 
 } // namespace octopus

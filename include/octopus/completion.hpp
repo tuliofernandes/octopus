@@ -27,6 +27,24 @@ private:
 };
 
 /**
+ * Releases streamed text only after it can no longer be part of a stop marker.
+ * This lets a backend print chunks on demand without exposing partial protocol
+ * delimiters such as "<end_of_turn>".
+ */
+class StopSafeTextBuffer {
+public:
+  explicit StopSafeTextBuffer(std::vector<std::string> stop_strings);
+
+  std::string append(std::string_view chunk);
+  std::string flush(std::string_view final_text);
+
+private:
+  std::size_t max_stop_size_ = 0;
+  std::size_t emitted_size_ = 0;
+  std::string buffer_;
+};
+
+/**
  * Detects a small set of obvious repetition failures. This is not "AI quality"
  * scoring; it is a practical safety net for raw decoding loops.
  */

@@ -37,6 +37,14 @@ normalize_stop_strings(std::vector<std::string> stop_strings) {
   return normalized;
 }
 
+std::size_t max_size(const std::vector<std::string> &values) {
+  std::size_t result = 0;
+  for (const auto &value : values) {
+    result = std::max(result, value.size());
+  }
+  return result;
+}
+
 std::size_t matching_stop_index(const std::string &text,
                                 const std::vector<std::string> &stop_strings) {
   std::size_t match = std::numeric_limits<std::size_t>::max();
@@ -120,6 +128,38 @@ const std::string &StopDetector::text() const noexcept { return text_; }
 
 const std::vector<std::string> &StopDetector::stop_strings() const noexcept {
   return stop_strings_;
+}
+
+StopSafeTextBuffer::StopSafeTextBuffer(std::vector<std::string> stop_strings)
+    : max_stop_size_(max_size(normalize_stop_strings(std::move(stop_strings)))) {}
+
+std::string StopSafeTextBuffer::append(std::string_view chunk) {
+  if (chunk.empty()) {
+    return {};
+  }
+
+  buffer_.append(chunk.data(), chunk.size());
+  const auto keep_size = max_stop_size_ == 0 ? 0 : max_stop_size_ - 1;
+  if (buffer_.size() <= keep_size) {
+    return {};
+  }
+
+  const auto emit_size = buffer_.size() - keep_size;
+  std::string emitted = buffer_.substr(0, emit_size);
+  buffer_.erase(0, emit_size);
+  emitted_size_ += emitted.size();
+  return emitted;
+}
+
+std::string StopSafeTextBuffer::flush(std::string_view final_text) {
+  buffer_.clear();
+  if (final_text.size() <= emitted_size_) {
+    return {};
+  }
+
+  std::string emitted(final_text.substr(emitted_size_));
+  emitted_size_ += emitted.size();
+  return emitted;
 }
 
 bool LoopDetector::append(std::string_view chunk) {

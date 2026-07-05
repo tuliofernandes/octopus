@@ -36,6 +36,51 @@ private:
   std::size_t next_result_ = 0;
 };
 
+class StreamingBackend final : public octopus::LlmBackend {
+public:
+  explicit StreamingBackend(
+      std::vector<std::vector<std::string>> chunks,
+      std::vector<octopus::CompletionResult> results)
+      : chunks_(std::move(chunks)), results_(std::move(results)) {}
+
+  octopus::CompletionResult
+  complete(const octopus::CompletionRequest &) override {
+    ++blocking_calls;
+    octopus::CompletionResult completion;
+    completion.finish_reason = octopus::FinishReason::BackendError;
+    completion.error = "blocking completion should not be called";
+    return completion;
+  }
+
+  octopus::CompletionResult complete_streaming(
+      const octopus::CompletionRequest &request,
+      octopus::CompletionSink &sink) override {
+    requests.push_back(request);
+    if (next_result_ >= results_.size()) {
+      octopus::CompletionResult completion;
+      completion.finish_reason = octopus::FinishReason::BackendError;
+      completion.error = "unexpected backend call";
+      return completion;
+    }
+
+    for (const auto &chunk : chunks_[next_result_]) {
+      sink.on_text({chunk});
+    }
+
+    const auto result = results_[next_result_];
+    ++next_result_;
+    return result;
+  }
+
+  int blocking_calls = 0;
+  std::vector<octopus::CompletionRequest> requests;
+
+private:
+  std::vector<std::vector<std::string>> chunks_;
+  std::vector<octopus::CompletionResult> results_;
+  std::size_t next_result_ = 0;
+};
+
 octopus::CompletionResult successful_completion(std::string text) {
   octopus::CompletionResult completion;
   completion.text = std::move(text);
@@ -109,6 +154,27 @@ TEST_CASE("CLI chat preserves assistant replies in later turn history",
   CHECK(err.str().empty());
 }
 
+TEST_CASE("CLI chat renders streaming chunks without duplicating final text",
+          "[chat]") {
+  StreamingBackend backend({{"Hello", " from", " Octopus."}},
+                           {successful_completion("Hello from Octopus.")});
+
+  octopus::CliOptions options;
+  options.mode = octopus::CliMode::Interactive;
+
+  std::istringstream in("Hello\n");
+  std::ostringstream out;
+  std::ostringstream err;
+
+  const auto result = octopus::run_cli_chat(options, backend, in, out, err);
+
+  CHECK(result.exit_code == 0);
+  CHECK(backend.blocking_calls == 0);
+  REQUIRE(backend.requests.size() == 1);
+  CHECK(out.str() == "you> octopus> Hello from Octopus.\nyou> ");
+  CHECK(err.str().empty());
+}
+
 TEST_CASE("CLI chat ignores blank lines without calling the backend",
           "[chat]") {
   RecordingBackend backend({successful_completion("Only once.")});
@@ -126,6 +192,31 @@ TEST_CASE("CLI chat ignores blank lines without calling the backend",
   CHECK(result.exit_code == 0);
   CHECK(backend.requests.size() == 1);
   CHECK(out.str() == "you> you> octopus> Only once.\nyou> you> ");
+  CHECK(err.str().empty());
+}
+
+TEST_CASE("CLI chat records final streaming result as assistant history",
+          "[chat]") {
+  StreamingBackend backend({{"First", " answer."}, {"Second", " answer."}},
+                           {successful_completion("First answer."),
+                            successful_completion("Second answer.")});
+
+  octopus::CliOptions options;
+  options.mode = octopus::CliMode::Interactive;
+
+  std::istringstream in("Hello\nAgain\n");
+  std::ostringstream out;
+  std::ostringstream err;
+
+  const auto result = octopus::run_cli_chat(options, backend, in, out, err);
+
+  CHECK(result.exit_code == 0);
+  REQUIRE(backend.requests.size() == 2);
+  REQUIRE(backend.requests[1].conversation.messages.size() == 5);
+  CHECK(backend.requests[1].conversation.messages[3].role ==
+        octopus::Role::Assistant);
+  CHECK(backend.requests[1].conversation.messages[3].content ==
+        "First answer.");
   CHECK(err.str().empty());
 }
 
@@ -153,6 +244,27 @@ TEST_CASE("CLI chat reports backend errors and stops without assistant history",
         octopus::Role::User);
   CHECK(out.str() == "you> ");
   CHECK(err.str().find("model failed") != std::string::npos);
+}
+
+TEST_CASE("CLI chat ends a partial streamed line before reporting an error",
+          "[chat]") {
+  octopus::CompletionResult error;
+  error.finish_reason = octopus::FinishReason::BackendError;
+  error.error = "decode failed";
+  StreamingBackend backend({{"Partial answer"}}, {error});
+
+  octopus::CliOptions options;
+  options.mode = octopus::CliMode::Interactive;
+
+  std::istringstream in("Hello\n");
+  std::ostringstream out;
+  std::ostringstream err;
+
+  const auto result = octopus::run_cli_chat(options, backend, in, out, err);
+
+  CHECK(result.exit_code == 1);
+  CHECK(out.str() == "you> octopus> Partial answer\n");
+  CHECK(err.str().find("decode failed") != std::string::npos);
 }
 
 TEST_CASE("CLI chat treats loop-detected output as assistant history",

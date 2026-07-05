@@ -12,6 +12,7 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -119,6 +120,14 @@ CompletionResult token_to_piece(const llama_vocab *vocab, llama_token token,
 
 bool failed(const CompletionResult &result) {
   return result.finish_reason == FinishReason::BackendError;
+}
+
+void emit_text(CompletionSink *sink, std::string text) {
+  if (sink == nullptr || text.empty()) {
+    return;
+  }
+
+  sink->on_text({std::move(text)});
 }
 
 bool has_gemma_fallback(const ModelProfile &profile) {
@@ -329,6 +338,16 @@ struct LlamaCppBackend::Impl {
   }
 
   CompletionResult complete(const CompletionRequest &request) {
+    return complete_impl(request, nullptr);
+  }
+
+  CompletionResult complete_streaming(const CompletionRequest &request,
+                                      CompletionSink &sink) {
+    return complete_impl(request, &sink);
+  }
+
+  CompletionResult complete_impl(const CompletionRequest &request,
+                                 CompletionSink *sink) {
     /**
      * The adapter validates generic harness policy before translating it to
      * llama.cpp objects.
@@ -357,6 +376,7 @@ struct LlamaCppBackend::Impl {
                         request.generation.stop_strings.end());
     StopDetector stop_detector(std::move(stop_strings));
     LoopDetector loop_detector;
+    StopSafeTextBuffer text_buffer(stop_detector.stop_strings());
 
     const llama_vocab *vocab = llama_model_get_vocab(model.get());
     if (vocab == nullptr) {
@@ -470,6 +490,7 @@ struct LlamaCppBackend::Impl {
        */
       if (stop_detector.append(piece)) {
         result.finish_reason = FinishReason::Stop;
+        emit_text(sink, text_buffer.flush(stop_detector.text()));
         break;
       }
 
@@ -480,8 +501,11 @@ struct LlamaCppBackend::Impl {
          */
         stop_detector.truncate(loop_detector.trim_size());
         result.finish_reason = FinishReason::LoopDetected;
+        emit_text(sink, text_buffer.flush(stop_detector.text()));
         break;
       }
+
+      emit_text(sink, text_buffer.append(piece));
 
       /**
        * Feed the sampled token back into the next decode step. This is the raw
@@ -491,6 +515,7 @@ struct LlamaCppBackend::Impl {
     }
 
     result.text = stop_detector.text();
+    emit_text(sink, text_buffer.flush(result.text));
     return result;
   }
 
@@ -512,6 +537,12 @@ LlamaCppBackend::operator=(LlamaCppBackend &&) noexcept = default;
 CompletionResult
 LlamaCppBackend::complete(const CompletionRequest &request) {
   return impl_->complete(request);
+}
+
+CompletionResult
+LlamaCppBackend::complete_streaming(const CompletionRequest &request,
+                                    CompletionSink &sink) {
+  return impl_->complete_streaming(request, sink);
 }
 
 } // namespace octopus
