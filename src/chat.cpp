@@ -1,6 +1,7 @@
 #include "octopus/chat.hpp"
 
 #include "octopus/ask.hpp"
+#include "octopus/terminal_input.hpp"
 
 #include <istream>
 #include <ostream>
@@ -10,6 +11,7 @@ namespace octopus {
 namespace {
 
 constexpr const char* kAssistantPrompt = "octopus> ";
+constexpr const char* kUserPrompt = "you> ";
 
 bool completionFailed(const CompletionResult& completion) {
   return completion.finish_reason == FinishReason::BackendError;
@@ -66,21 +68,27 @@ ChatRunResult runCliChat(const CliOptions& options, LlmBackend& backend,
                          std::ostream& err) {
   ChatRunResult result;
   Conversation conversation;
-  std::string line;
+  bool previous_input_cancelled = false;
 
   while (true) {
-    out << "you> ";
-    out.flush();
-
-    if (!std::getline(in, line)) {
+    const auto input = readTerminalInput(in, out, kUserPrompt);
+    if (input.status == TerminalReadStatus::EndOfFile) {
       return result;
     }
+    if (input.status == TerminalReadStatus::Cancelled) {
+      if (previous_input_cancelled) {
+        return result;
+      }
+      previous_input_cancelled = true;
+      continue;
+    }
+    previous_input_cancelled = false;
 
-    if (line.empty()) {
+    if (input.text.empty()) {
       continue;
     }
 
-    conversation.messages.push_back({Role::User, line});
+    conversation.messages.push_back({Role::User, input.text});
     ChatOutputSink sink(out);
     result.last_completion = backend.completeStreaming(
         makeConversationRequest(options, conversation), sink);

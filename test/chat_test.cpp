@@ -191,6 +191,27 @@ TEST_CASE("CLI chat ignores blank lines without calling the backend",
   CHECK(err.str().empty());
 }
 
+TEST_CASE("CLI chat joins continued lines into one user message", "[chat]") {
+  RecordingBackend backend({successfulCompletion("Joined.")});
+
+  octopus::CliOptions options;
+  options.mode = octopus::CliMode::Interactive;
+
+  std::istringstream in("First line\\\nsecond line\n");
+  std::ostringstream out;
+  std::ostringstream err;
+
+  const auto result = octopus::runCliChat(options, backend, in, out, err);
+
+  CHECK(result.exit_code == 0);
+  REQUIRE(backend.requests.size() == 1);
+  REQUIRE(backend.requests[0].conversation.messages.size() == 3);
+  CHECK(backend.requests[0].conversation.messages[2].content ==
+        "First line\nsecond line");
+  CHECK(out.str() == "you> octopus> Joined.\nyou> ");
+  CHECK(err.str().empty());
+}
+
 TEST_CASE("CLI chat records final streaming result as assistant history",
           "[chat]") {
   StreamingBackend backend({{"First", " answer."}, {"Second", " answer."}},
