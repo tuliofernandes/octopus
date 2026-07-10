@@ -1,7 +1,7 @@
 #include "octopus/chat.hpp"
 
 #include "octopus/ask.hpp"
-#include "octopus/terminal_input.hpp"
+#include "octopus/input_editor.hpp"
 
 #include <csignal>
 #include <istream>
@@ -13,6 +13,7 @@ namespace {
 
 constexpr const char* kAssistantPrompt = "octopus> ";
 constexpr const char* kUserPrompt = "you> ";
+constexpr const char* kContinuationPrompt = "...> ";
 
 volatile std::sig_atomic_t g_generation_cancelled = 0;
 
@@ -112,14 +113,15 @@ ChatRunResult runCliChat(const CliOptions& options, LlmBackend& backend,
                          std::ostream& err) {
   ChatRunResult result;
   Conversation conversation;
+  InputEditor input_editor(in, out, {kUserPrompt, kContinuationPrompt});
   bool previous_input_cancelled = false;
 
   while (true) {
-    const auto input = readTerminalInput(in, out, kUserPrompt);
-    if (input.status == TerminalReadStatus::EndOfFile) {
+    const auto input = input_editor.read();
+    if (input.status == InputEditorStatus::EndOfFile) {
       return result;
     }
-    if (input.status == TerminalReadStatus::Cancelled) {
+    if (input.status == InputEditorStatus::Cancelled) {
       if (previous_input_cancelled) {
         return result;
       }

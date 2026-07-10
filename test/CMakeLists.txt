@@ -8,6 +8,7 @@ target_sources(octopus_tests PRIVATE
         chat_test.cpp
         cli_test.cpp
         completion_test.cpp
+        input_editor_test.cpp
         prompt_test.cpp
         smoke_test.cpp
         terminal_input_test.cpp)

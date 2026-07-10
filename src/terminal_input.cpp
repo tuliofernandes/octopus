@@ -19,8 +19,6 @@ constexpr char kCtrlD = '\x04';
 constexpr char kCtrlW = '\x17';
 constexpr char kBackspace = '\x08';
 constexpr char kDelete = '\x7f';
-constexpr std::string_view kContinuationPrompt = "...> ";
-
 bool endsWithContinuation(const std::string& line) {
   return !line.empty() && line.back() == '\\';
 }
@@ -98,16 +96,18 @@ struct RenderMetrics {
   ScreenPosition end;
 };
 
-void advancePosition(ScreenPosition& position, char byte) {
+void advancePosition(ScreenPosition& position, char byte,
+                     std::string_view continuation_prompt) {
   if (byte == '\n') {
     ++position.row;
-    position.column = kContinuationPrompt.size();
+    position.column = continuation_prompt.size();
     return;
   }
   ++position.column;
 }
 
 RenderMetrics measureInput(std::string_view prompt,
+                           std::string_view continuation_prompt,
                            const TerminalLineEditor& editor) {
   RenderMetrics metrics;
   ScreenPosition position{0, prompt.size()};
@@ -117,7 +117,7 @@ RenderMetrics measureInput(std::string_view prompt,
     if (index == editor.cursor()) {
       metrics.cursor = position;
     }
-    advancePosition(position, line[index]);
+    advancePosition(position, line[index], continuation_prompt);
   }
   if (editor.cursor() == line.size()) {
     metrics.cursor = position;
@@ -128,6 +128,7 @@ RenderMetrics measureInput(std::string_view prompt,
 }
 
 std::size_t redrawInput(std::ostream& out, std::string_view prompt,
+                        std::string_view continuation_prompt,
                         const TerminalLineEditor& editor,
                         std::size_t previous_rows) {
   if (previous_rows > 1) {
@@ -140,13 +141,13 @@ std::size_t redrawInput(std::ostream& out, std::string_view prompt,
   const auto& line = editor.currentLine();
   for (const char byte : line) {
     if (byte == '\n') {
-      out << '\n' << kContinuationPrompt;
+      out << '\n' << continuation_prompt;
       continue;
     }
     out << byte;
   }
 
-  const auto metrics = measureInput(prompt, editor);
+  const auto metrics = measureInput(prompt, continuation_prompt, editor);
   if (metrics.end.row > metrics.cursor.row) {
     out << "\x1b[" << (metrics.end.row - metrics.cursor.row) << "A";
   }
@@ -183,7 +184,8 @@ TerminalReadResult readCookedInput(std::istream& in, std::ostream& out,
   return result;
 }
 
-TerminalReadResult readRawInput(std::ostream& out, std::string_view prompt) {
+TerminalReadResult readRawInput(std::ostream& out, std::string_view prompt,
+                                std::string_view continuation_prompt) {
   ScopedRawTerminal terminal(STDIN_FILENO);
   if (!terminal.active()) {
     return {TerminalReadStatus::EndOfFile, ""};
@@ -228,7 +230,8 @@ TerminalReadResult readRawInput(std::ostream& out, std::string_view prompt) {
 
     if (was_pasting || editor.isPasting()) {
       if (was_pasting && !editor.isPasting()) {
-        rendered_rows = redrawInput(out, prompt, editor, rendered_rows);
+        rendered_rows = redrawInput(out, prompt, continuation_prompt, editor,
+                                    rendered_rows);
       }
       continue;
     }
@@ -237,7 +240,8 @@ TerminalReadResult readRawInput(std::ostream& out, std::string_view prompt) {
       continue;
     }
 
-    rendered_rows = redrawInput(out, prompt, editor, rendered_rows);
+    rendered_rows =
+        redrawInput(out, prompt, continuation_prompt, editor, rendered_rows);
   }
 }
 
@@ -537,9 +541,10 @@ void TerminalLineEditor::resetEscape() noexcept {
 }
 
 TerminalReadResult readTerminalInput(std::istream& in, std::ostream& out,
-                                     std::string_view prompt) {
+                                     std::string_view prompt,
+                                     std::string_view continuation_prompt) {
   if (isInteractiveTerminal(in, out)) {
-    return readRawInput(out, prompt);
+    return readRawInput(out, prompt, continuation_prompt);
   }
   return readCookedInput(in, out, prompt);
 }

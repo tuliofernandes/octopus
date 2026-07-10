@@ -15,6 +15,7 @@ set(OCTOPUS_FORMAT_SOURCES
         include/octopus/chat.hpp
         include/octopus/cli.hpp
         include/octopus/completion.hpp
+        include/octopus/input_editor.hpp
         include/octopus/llama_cpp_backend.hpp
         include/octopus/llm.hpp
         include/octopus/prompt.hpp
@@ -23,6 +24,7 @@ set(OCTOPUS_FORMAT_SOURCES
         src/chat.cpp
         src/cli.cpp
         src/completion.cpp
+        src/input_editor.cpp
         src/llama_cpp_backend.cpp
         src/main.cpp
         src/prompt.cpp
@@ -31,6 +33,7 @@ set(OCTOPUS_FORMAT_SOURCES
         test/chat_test.cpp
         test/cli_test.cpp
         test/completion_test.cpp
+        test/input_editor_test.cpp
         test/prompt_test.cpp
         test/smoke_test.cpp
         test/terminal_input_test.cpp)
@@ -61,6 +64,7 @@ add_library(octopus_llm STATIC
         src/ask.cpp
         src/chat.cpp
         src/completion.cpp
+        src/input_editor.cpp
         src/prompt.cpp
         src/terminal_input.cpp)
 target_include_directories(octopus_llm PUBLIC include)

@@ -76,9 +76,10 @@ struct TerminalReadResult {
   std::string text;
 };
 
-// Reads one chat input message. Real TTY stdin/stdout uses raw-mode editing;
-// all other streams use cooked std::getline semantics for pipes and tests.
+// Low-level terminal input reader used by InputEditor. Real TTY stdin/stdout
+// uses raw-mode editing; all other streams use cooked std::getline semantics.
 TerminalReadResult readTerminalInput(std::istream& in, std::ostream& out,
-                                     std::string_view prompt);
+                                     std::string_view prompt,
+                                     std::string_view continuation_prompt);
 
 }  // namespace octopus
