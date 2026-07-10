@@ -54,8 +54,7 @@ TEST_CASE("stop-safe text buffer holds possible stop suffixes",
   CHECK(buffer.flush("abcdef") == "bcdef");
 }
 
-TEST_CASE("stop-safe text buffer does not flush stop markers",
-          "[completion]") {
+TEST_CASE("stop-safe text buffer does not flush stop markers", "[completion]") {
   octopus::StopSafeTextBuffer buffer({"<stop>"});
 
   std::string visible;

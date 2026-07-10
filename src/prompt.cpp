@@ -7,22 +7,22 @@
 namespace octopus {
 namespace {
 
-constexpr const char *kGemmaEndOfTurn = "<end_of_turn>";
+constexpr const char* kGemmaEndOfTurn = "<end_of_turn>";
 
 /**
  * Manual Gemma rendering uses Gemma's training-time role names. "Assistant" is
  * called "model" in that syntax, which is why the mapping is not symmetric.
  */
-const char *role_name(Role role) {
+const char* role_name(Role role) {
   switch (role) {
-  case Role::System:
-    return "system";
-  case Role::Developer:
-    return "developer";
-  case Role::User:
-    return "user";
-  case Role::Assistant:
-    return "model";
+    case Role::System:
+      return "system";
+    case Role::Developer:
+      return "developer";
+    case Role::User:
+      return "user";
+    case Role::Assistant:
+      return "model";
   }
 
   return "user";
@@ -33,15 +33,15 @@ const char *role_name(Role role) {
  * Octopus policy roles to "system" and let the selected model template decide
  * how that role should appear in the final prompt.
  */
-const char *chat_template_role_name(Role role) {
+const char* chat_template_role_name(Role role) {
   switch (role) {
-  case Role::System:
-  case Role::Developer:
-    return "system";
-  case Role::User:
-    return "user";
-  case Role::Assistant:
-    return "assistant";
+    case Role::System:
+    case Role::Developer:
+      return "system";
+    case Role::User:
+      return "user";
+    case Role::Assistant:
+      return "assistant";
   }
 
   return "user";
@@ -51,8 +51,8 @@ const char *chat_template_role_name(Role role) {
  * A Gemma turn is plain text with special delimiters. This is the final shape
  * the raw model was trained to continue.
  */
-void append_turn(std::ostringstream &output, Role role,
-                 const std::string &content) {
+void append_turn(std::ostringstream& output, Role role,
+                 const std::string& content) {
   output << "<start_of_turn>" << role_name(role) << '\n'
          << content << kGemmaEndOfTurn << '\n';
 }
@@ -61,14 +61,14 @@ void append_turn(std::ostringstream &output, Role role,
  * Some models only understand user/assistant turns. Folding preserves Octopus
  * system/developer policy by embedding it into the next user message.
  */
-std::string policy_prelude(const std::vector<Message> &policy_messages) {
+std::string policy_prelude(const std::vector<Message>& policy_messages) {
   if (policy_messages.empty()) {
     return {};
   }
 
   std::ostringstream output;
   output << "Octopus operating instructions:\n";
-  for (const auto &message : policy_messages) {
+  for (const auto& message : policy_messages) {
     output << '[' << role_name(message.role) << "]\n"
            << message.content << '\n';
   }
@@ -76,7 +76,7 @@ std::string policy_prelude(const std::vector<Message> &policy_messages) {
   return output.str();
 }
 
-} // namespace
+}  // namespace
 
 ModelProfile ModelProfile::gemma_instruction() {
   ModelProfile profile;
@@ -102,9 +102,8 @@ ModelProfile ModelProfile::llama_chat_template() {
   return profile;
 }
 
-ChatTemplateMessages
-make_chat_template_messages(const Conversation &conversation,
-                            const ModelProfile &profile) {
+ChatTemplateMessages make_chat_template_messages(
+    const Conversation& conversation, const ModelProfile& profile) {
   ChatTemplateMessages result;
   result.role_storage.reserve(conversation.messages.size());
   result.content_storage.reserve(conversation.messages.size());
@@ -117,7 +116,7 @@ make_chat_template_messages(const Conversation &conversation,
    */
   std::vector<Message> pending_policy;
 
-  for (const auto &message : conversation.messages) {
+  for (const auto& message : conversation.messages) {
     if (profile.fold_policy_messages &&
         (message.role == Role::System || message.role == Role::Developer)) {
       pending_policy.push_back(message);
@@ -130,7 +129,7 @@ make_chat_template_messages(const Conversation &conversation,
                                        message.content);
       pending_policy.clear();
     } else {
-    result.content_storage.push_back(message.content);
+      result.content_storage.push_back(message.content);
     }
   }
 
@@ -147,25 +146,25 @@ make_chat_template_messages(const Conversation &conversation,
   return result;
 }
 
-RenderedPrompt render_prompt(const Conversation &conversation,
-                             const ModelProfile &profile) {
+RenderedPrompt render_prompt(const Conversation& conversation,
+                             const ModelProfile& profile) {
   /**
    * This function is intentionally fallback-oriented. The llama.cpp metadata
    * path is handled in the backend because it needs the loaded model object.
    */
   switch (profile.prompt_renderer) {
-  case PromptRenderer::GemmaInstruction: {
-    auto rendered = render_gemma_prompt(conversation);
-    rendered.stop_strings = profile.stop_strings;
-    return rendered;
-  }
-  case PromptRenderer::LlamaChatTemplate:
-    if (profile.fallback_renderer == PromptFallback::GemmaInstruction) {
+    case PromptRenderer::GemmaInstruction: {
       auto rendered = render_gemma_prompt(conversation);
       rendered.stop_strings = profile.stop_strings;
       return rendered;
     }
-    return {{}, profile.stop_strings};
+    case PromptRenderer::LlamaChatTemplate:
+      if (profile.fallback_renderer == PromptFallback::GemmaInstruction) {
+        auto rendered = render_gemma_prompt(conversation);
+        rendered.stop_strings = profile.stop_strings;
+        return rendered;
+      }
+      return {{}, profile.stop_strings};
   }
 
   auto rendered = render_gemma_prompt(conversation);
@@ -173,7 +172,7 @@ RenderedPrompt render_prompt(const Conversation &conversation,
   return rendered;
 }
 
-RenderedPrompt render_gemma_prompt(const Conversation &conversation) {
+RenderedPrompt render_gemma_prompt(const Conversation& conversation) {
   std::ostringstream output;
   /**
    * Gemma does not receive separate system/developer turns in our manual
@@ -181,7 +180,7 @@ RenderedPrompt render_gemma_prompt(const Conversation &conversation) {
    */
   std::vector<Message> pending_policy;
 
-  for (const auto &message : conversation.messages) {
+  for (const auto& message : conversation.messages) {
     if (message.role == Role::System || message.role == Role::Developer) {
       pending_policy.push_back(message);
       continue;
@@ -206,4 +205,4 @@ RenderedPrompt render_gemma_prompt(const Conversation &conversation) {
   return {output.str(), {kGemmaEndOfTurn}};
 }
 
-} // namespace octopus
+}  // namespace octopus

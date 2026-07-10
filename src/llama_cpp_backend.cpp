@@ -49,9 +49,9 @@ bool fits_uint32(std::size_t value) {
          static_cast<std::size_t>(std::numeric_limits<uint32_t>::max());
 }
 
-CompletionResult tokenize_prompt(const llama_vocab *vocab,
-                                 const std::string &prompt,
-                                 std::vector<llama_token> &tokens) {
+CompletionResult tokenize_prompt(const llama_vocab* vocab,
+                                 const std::string& prompt,
+                                 std::vector<llama_token>& tokens) {
   if (!fits_int32(prompt.size())) {
     return backend_error("prompt is too large to tokenize");
   }
@@ -61,8 +61,8 @@ CompletionResult tokenize_prompt(const llama_vocab *vocab,
    * First call asks llama.cpp how many tokens are needed. The negative return
    * value is a sizing convention, not an error.
    */
-  const int32_t sized =
-      llama_tokenize(vocab, prompt.c_str(), prompt_size, nullptr, 0, true, true);
+  const int32_t sized = llama_tokenize(vocab, prompt.c_str(), prompt_size,
+                                       nullptr, 0, true, true);
   if (sized == std::numeric_limits<int32_t>::min() || sized >= 0) {
     return backend_error("failed to size prompt tokens");
   }
@@ -77,8 +77,8 @@ CompletionResult tokenize_prompt(const llama_vocab *vocab,
    * Second call fills the buffer. This two-step pattern avoids guessing token
    * capacity and keeps ownership in std::vector.
    */
-  const int32_t actual = llama_tokenize(
-      vocab, prompt.c_str(), prompt_size, tokens.data(), token_count, true, true);
+  const int32_t actual = llama_tokenize(vocab, prompt.c_str(), prompt_size,
+                                        tokens.data(), token_count, true, true);
   if (actual != token_count) {
     return backend_error("failed to tokenize prompt");
   }
@@ -87,15 +87,16 @@ CompletionResult tokenize_prompt(const llama_vocab *vocab,
   return ok;
 }
 
-CompletionResult token_to_piece(const llama_vocab *vocab, llama_token token,
-                                std::string &piece) {
+CompletionResult token_to_piece(const llama_vocab* vocab, llama_token token,
+                                std::string& piece) {
   std::vector<char> buffer(128);
   /**
    * Token pieces are byte strings, not necessarily whole words. Stop and loop
    * detectors therefore work on accumulated text across pieces.
    */
-  int32_t written = llama_token_to_piece(
-      vocab, token, buffer.data(), static_cast<int32_t>(buffer.size()), 0, true);
+  int32_t written =
+      llama_token_to_piece(vocab, token, buffer.data(),
+                           static_cast<int32_t>(buffer.size()), 0, true);
 
   if (written < 0) {
     const auto needed = static_cast<std::size_t>(-written);
@@ -104,12 +105,13 @@ CompletionResult token_to_piece(const llama_vocab *vocab, llama_token token,
     }
 
     buffer.resize(needed);
-    written = llama_token_to_piece(vocab, token, buffer.data(),
-                                   static_cast<int32_t>(buffer.size()), 0, true);
+    written =
+        llama_token_to_piece(vocab, token, buffer.data(),
+                             static_cast<int32_t>(buffer.size()), 0, true);
   }
 
-  if (written < 0 ||
-      static_cast<std::size_t>(written) > static_cast<std::size_t>(buffer.size())) {
+  if (written < 0 || static_cast<std::size_t>(written) >
+                         static_cast<std::size_t>(buffer.size())) {
     return backend_error("failed to convert token to piece");
   }
 
@@ -118,11 +120,11 @@ CompletionResult token_to_piece(const llama_vocab *vocab, llama_token token,
   return ok;
 }
 
-bool failed(const CompletionResult &result) {
+bool failed(const CompletionResult& result) {
   return result.finish_reason == FinishReason::BackendError;
 }
 
-void emit_text(CompletionSink *sink, std::string text) {
+void emit_text(CompletionSink* sink, std::string text) {
   if (sink == nullptr || text.empty()) {
     return;
   }
@@ -130,7 +132,7 @@ void emit_text(CompletionSink *sink, std::string text) {
   sink->on_text({std::move(text)});
 }
 
-bool has_gemma_fallback(const ModelProfile &profile) {
+bool has_gemma_fallback(const ModelProfile& profile) {
   return profile.fallback_renderer == PromptFallback::GemmaInstruction;
 }
 
@@ -141,11 +143,11 @@ std::string lowercase(std::string text) {
   return text;
 }
 
-bool contains(const std::string &text, const std::string &needle) {
+bool contains(const std::string& text, const std::string& needle) {
   return text.find(needle) != std::string::npos;
 }
 
-bool looks_like_integrated_amd_gpu(const std::string &description) {
+bool looks_like_integrated_amd_gpu(const std::string& description) {
   const auto lower = lowercase(description);
   return contains(lower, "ryzen") || contains(lower, "integrated") ||
          contains(lower, "radeon graphics");
@@ -203,15 +205,15 @@ BackendPromptResult prompt_error(std::string message) {
   return result;
 }
 
-BackendPromptResult manual_prompt(const CompletionRequest &request) {
+BackendPromptResult manual_prompt(const CompletionRequest& request) {
   BackendPromptResult result;
   result.rendered = render_prompt(request.conversation, request.model_profile);
   return result;
 }
 
-BackendPromptResult apply_model_chat_template(const llama_model *model,
-                                              const CompletionRequest &request) {
-  const char *chat_template = llama_model_chat_template(model, nullptr);
+BackendPromptResult apply_model_chat_template(
+    const llama_model* model, const CompletionRequest& request) {
+  const char* chat_template = llama_model_chat_template(model, nullptr);
   if (chat_template == nullptr) {
     /**
      * Metadata templates are preferred, but a known manual fallback keeps the
@@ -221,14 +223,15 @@ BackendPromptResult apply_model_chat_template(const llama_model *model,
       return manual_prompt(request);
     }
     return prompt_error(
-        "model chat template metadata is unavailable and no prompt fallback is configured");
+        "model chat template metadata is unavailable and no prompt fallback is "
+        "configured");
   }
 
   const auto template_messages =
       make_chat_template_messages(request.conversation, request.model_profile);
   std::vector<llama_chat_message> chat;
   chat.reserve(template_messages.messages.size());
-  for (const auto &message : template_messages.messages) {
+  for (const auto& message : template_messages.messages) {
     chat.push_back({message.role, message.content});
   }
 
@@ -236,9 +239,8 @@ BackendPromptResult apply_model_chat_template(const llama_model *model,
    * Ask llama.cpp to render according to the model's own GGUF chat template.
    * This is model-specific syntax without hardcoding that syntax in Octopus.
    */
-  int32_t formatted_size =
-      llama_chat_apply_template(chat_template, chat.data(), chat.size(), true,
-                                nullptr, 0);
+  int32_t formatted_size = llama_chat_apply_template(
+      chat_template, chat.data(), chat.size(), true, nullptr, 0);
   if (formatted_size < 0) {
     if (has_gemma_fallback(request.model_profile)) {
       return manual_prompt(request);
@@ -251,10 +253,10 @@ BackendPromptResult apply_model_chat_template(const llama_model *model,
    * llama_chat_apply_template can report that the buffer was too small. The
    * retry below treats that as a normal growth path.
    */
-  int32_t actual = llama_chat_apply_template(
-      chat_template, chat.data(), chat.size(), true,
-      buffer.empty() ? nullptr : buffer.data(),
-      static_cast<int32_t>(buffer.size()));
+  int32_t actual =
+      llama_chat_apply_template(chat_template, chat.data(), chat.size(), true,
+                                buffer.empty() ? nullptr : buffer.data(),
+                                static_cast<int32_t>(buffer.size()));
   if (actual < 0) {
     if (has_gemma_fallback(request.model_profile)) {
       return manual_prompt(request);
@@ -267,10 +269,10 @@ BackendPromptResult apply_model_chat_template(const llama_model *model,
       return prompt_error("rendered chat template is too large");
     }
     buffer.resize(static_cast<std::size_t>(actual));
-    actual = llama_chat_apply_template(
-        chat_template, chat.data(), chat.size(), true,
-        buffer.empty() ? nullptr : buffer.data(),
-        static_cast<int32_t>(buffer.size()));
+    actual =
+        llama_chat_apply_template(chat_template, chat.data(), chat.size(), true,
+                                  buffer.empty() ? nullptr : buffer.data(),
+                                  static_cast<int32_t>(buffer.size()));
   }
 
   if (actual < 0 || static_cast<std::size_t>(actual) > buffer.size()) {
@@ -282,36 +284,36 @@ BackendPromptResult apply_model_chat_template(const llama_model *model,
 
   BackendPromptResult result;
   if (actual > 0) {
-    result.rendered.text.assign(buffer.data(), static_cast<std::size_t>(actual));
+    result.rendered.text.assign(buffer.data(),
+                                static_cast<std::size_t>(actual));
   }
   result.rendered.stop_strings = request.model_profile.stop_strings;
   return result;
 }
 
-BackendPromptResult render_backend_prompt(const llama_model *model,
-                                          const CompletionRequest &request) {
+BackendPromptResult render_backend_prompt(const llama_model* model,
+                                          const CompletionRequest& request) {
   /**
    * Metadata rendering needs the loaded llama_model, so final renderer
    * selection lives in this backend rather than pure prompt.cpp.
    */
   switch (request.model_profile.prompt_renderer) {
-  case PromptRenderer::GemmaInstruction:
-    return manual_prompt(request);
-  case PromptRenderer::LlamaChatTemplate:
-    return apply_model_chat_template(model, request);
+    case PromptRenderer::GemmaInstruction:
+      return manual_prompt(request);
+    case PromptRenderer::LlamaChatTemplate:
+      return apply_model_chat_template(model, request);
   }
 
   return manual_prompt(request);
 }
 
-} // namespace
+}  // namespace
 
 struct LlamaCppBackend::Impl {
   explicit Impl(LlamaCppBackendOptions init_options)
-      : options(std::move(init_options)),
-        model(nullptr, llama_model_free) {
+      : options(std::move(init_options)), model(nullptr, llama_model_free) {
     if (options.quiet) {
-      llama_log_set([](ggml_log_level, const char *, void *) {}, nullptr);
+      llama_log_set([](ggml_log_level, const char*, void*) {}, nullptr);
     }
 
     ggml_backend_load_all();
@@ -333,21 +335,21 @@ struct LlamaCppBackend::Impl {
     } else {
       model_params.n_gpu_layers = 0;
     }
-    model.reset(llama_model_load_from_file(options.model_path.c_str(),
-                                           model_params));
+    model.reset(
+        llama_model_load_from_file(options.model_path.c_str(), model_params));
   }
 
-  CompletionResult complete(const CompletionRequest &request) {
+  CompletionResult complete(const CompletionRequest& request) {
     return complete_impl(request, nullptr);
   }
 
-  CompletionResult complete_streaming(const CompletionRequest &request,
-                                      CompletionSink &sink) {
+  CompletionResult complete_streaming(const CompletionRequest& request,
+                                      CompletionSink& sink) {
     return complete_impl(request, &sink);
   }
 
-  CompletionResult complete_impl(const CompletionRequest &request,
-                                 CompletionSink *sink) {
+  CompletionResult complete_impl(const CompletionRequest& request,
+                                 CompletionSink* sink) {
     /**
      * The adapter validates generic harness policy before translating it to
      * llama.cpp objects.
@@ -365,7 +367,7 @@ struct LlamaCppBackend::Impl {
     if (!prompt_result.ok) {
       return prompt_result.error;
     }
-    const auto &rendered = prompt_result.rendered;
+    const auto& rendered = prompt_result.rendered;
     /**
      * Prompt-format stops and caller-requested stops are both output
      * boundaries, so they are enforced by the same detector.
@@ -378,7 +380,7 @@ struct LlamaCppBackend::Impl {
     LoopDetector loop_detector;
     StopSafeTextBuffer text_buffer(stop_detector.stop_strings());
 
-    const llama_vocab *vocab = llama_model_get_vocab(model.get());
+    const llama_vocab* vocab = llama_model_get_vocab(model.get());
     if (vocab == nullptr) {
       return backend_error("model does not expose a vocabulary");
     }
@@ -427,11 +429,10 @@ struct LlamaCppBackend::Impl {
        * away from recent repetition while keeping deterministic output.
        */
       std::unique_ptr<llama_sampler, decltype(&llama_sampler_free)> penalties(
-          llama_sampler_init_penalties(
-              request.generation.repeat_last_n,
-              request.generation.repeat_penalty,
-              request.generation.frequency_penalty,
-              request.generation.presence_penalty),
+          llama_sampler_init_penalties(request.generation.repeat_last_n,
+                                       request.generation.repeat_penalty,
+                                       request.generation.frequency_penalty,
+                                       request.generation.presence_penalty),
           llama_sampler_free);
       if (penalties == nullptr) {
         return backend_error("failed to create penalties sampler");
@@ -445,9 +446,8 @@ struct LlamaCppBackend::Impl {
     }
     llama_sampler_chain_add(sampler.get(), greedy.release());
 
-    llama_batch batch =
-        llama_batch_get_one(prompt_tokens.data(),
-                            static_cast<int32_t>(prompt_tokens.size()));
+    llama_batch batch = llama_batch_get_one(
+        prompt_tokens.data(), static_cast<int32_t>(prompt_tokens.size()));
 
     CompletionResult result;
     /**
@@ -529,20 +529,18 @@ LlamaCppBackend::LlamaCppBackend(LlamaCppBackendOptions options)
 
 LlamaCppBackend::~LlamaCppBackend() = default;
 
-LlamaCppBackend::LlamaCppBackend(LlamaCppBackend &&) noexcept = default;
+LlamaCppBackend::LlamaCppBackend(LlamaCppBackend&&) noexcept = default;
 
-LlamaCppBackend &
-LlamaCppBackend::operator=(LlamaCppBackend &&) noexcept = default;
+LlamaCppBackend& LlamaCppBackend::operator=(LlamaCppBackend&&) noexcept =
+    default;
 
-CompletionResult
-LlamaCppBackend::complete(const CompletionRequest &request) {
+CompletionResult LlamaCppBackend::complete(const CompletionRequest& request) {
   return impl_->complete(request);
 }
 
-CompletionResult
-LlamaCppBackend::complete_streaming(const CompletionRequest &request,
-                                    CompletionSink &sink) {
+CompletionResult LlamaCppBackend::complete_streaming(
+    const CompletionRequest& request, CompletionSink& sink) {
   return impl_->complete_streaming(request, sink);
 }
 
-} // namespace octopus
+}  // namespace octopus

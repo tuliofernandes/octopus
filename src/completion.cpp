@@ -18,13 +18,13 @@ constexpr std::size_t kMaxRepeatedLineBytes = 80;
 constexpr std::size_t kMinRepeatedWindowBytes = 8;
 constexpr std::size_t kMaxRepeatedWindowBytes = 96;
 
-std::vector<std::string>
-normalize_stop_strings(std::vector<std::string> stop_strings) {
+std::vector<std::string> normalize_stop_strings(
+    std::vector<std::string> stop_strings) {
   std::vector<std::string> normalized;
   normalized.reserve(stop_strings.size());
 
   // Empty stops would match everything, and duplicates only add extra checks.
-  for (auto &stop : stop_strings) {
+  for (auto& stop : stop_strings) {
     if (stop.empty()) {
       continue;
     }
@@ -37,16 +37,16 @@ normalize_stop_strings(std::vector<std::string> stop_strings) {
   return normalized;
 }
 
-std::size_t max_size(const std::vector<std::string> &values) {
+std::size_t max_size(const std::vector<std::string>& values) {
   std::size_t result = 0;
-  for (const auto &value : values) {
+  for (const auto& value : values) {
     result = std::max(result, value.size());
   }
   return result;
 }
 
-std::size_t matching_stop_index(const std::string &text,
-                                const std::vector<std::string> &stop_strings) {
+std::size_t matching_stop_index(const std::string& text,
+                                const std::vector<std::string>& stop_strings) {
   std::size_t match = std::numeric_limits<std::size_t>::max();
 
   /**
@@ -54,7 +54,7 @@ std::size_t matching_stop_index(const std::string &text,
    * specific model delimiter that ends at the same position.
    */
   for (std::size_t index = 0; index < stop_strings.size(); ++index) {
-    const auto &stop = stop_strings[index];
+    const auto& stop = stop_strings[index];
     if (text.size() < stop.size()) {
       continue;
     }
@@ -91,7 +91,7 @@ bool all_equal_windows(std::string_view text, std::size_t unit_size) {
   return true;
 }
 
-} // namespace
+}  // namespace
 
 StopDetector::StopDetector(std::vector<std::string> stop_strings)
     : stop_strings_(normalize_stop_strings(std::move(stop_strings))) {}
@@ -108,7 +108,7 @@ bool StopDetector::append(std::string_view chunk) {
     return false;
   }
 
-  const auto &stop = stop_strings_[match];
+  const auto& stop = stop_strings_[match];
   // The stop marker belongs to prompt protocol, not the assistant answer.
   text_.erase(text_.size() - stop.size());
   return true;
@@ -124,14 +124,15 @@ void StopDetector::truncate(std::size_t size) {
   }
 }
 
-const std::string &StopDetector::text() const noexcept { return text_; }
+const std::string& StopDetector::text() const noexcept { return text_; }
 
-const std::vector<std::string> &StopDetector::stop_strings() const noexcept {
+const std::vector<std::string>& StopDetector::stop_strings() const noexcept {
   return stop_strings_;
 }
 
 StopSafeTextBuffer::StopSafeTextBuffer(std::vector<std::string> stop_strings)
-    : max_stop_size_(max_size(normalize_stop_strings(std::move(stop_strings)))) {}
+    : max_stop_size_(
+          max_size(normalize_stop_strings(std::move(stop_strings)))) {}
 
 std::string StopSafeTextBuffer::append(std::string_view chunk) {
   if (chunk.empty()) {
@@ -192,13 +193,13 @@ bool LoopDetector::detect_repeated_lines() {
 
   std::size_t line_end = recent_text_.size();
   while (line_end > 0 && lines.size() < kLoopRepeatCount) {
-    const auto previous_newline =
-        line_end > 1 ? recent_text_.rfind('\n', line_end - 2)
-                     : std::string::npos;
+    const auto previous_newline = line_end > 1
+                                      ? recent_text_.rfind('\n', line_end - 2)
+                                      : std::string::npos;
     const auto line_start =
         previous_newline == std::string::npos ? 0 : previous_newline + 1;
-    lines.push_back(std::string_view(recent_text_).substr(
-        line_start, line_end - line_start));
+    lines.push_back(std::string_view(recent_text_)
+                        .substr(line_start, line_end - line_start));
 
     if (previous_newline == std::string::npos) {
       break;
@@ -206,8 +207,8 @@ bool LoopDetector::detect_repeated_lines() {
     line_end = line_start;
   }
 
-  if (lines.size() != kLoopRepeatCount || lines[0].size() > kMaxRepeatedLineBytes ||
-      !has_non_space(lines[0])) {
+  if (lines.size() != kLoopRepeatCount ||
+      lines[0].size() > kMaxRepeatedLineBytes || !has_non_space(lines[0])) {
     return false;
   }
 
@@ -270,4 +271,4 @@ std::size_t LoopDetector::trim_size() const noexcept {
   return detected_ ? trim_size_ : generated_size_;
 }
 
-} // namespace octopus
+}  // namespace octopus

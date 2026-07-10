@@ -9,12 +9,12 @@
 namespace {
 
 class FakeBackend final : public octopus::LlmBackend {
-public:
+ public:
   explicit FakeBackend(octopus::CompletionResult result)
       : result_(std::move(result)) {}
 
-  octopus::CompletionResult
-  complete(const octopus::CompletionRequest &request) override {
+  octopus::CompletionResult complete(
+      const octopus::CompletionRequest& request) override {
     last_request = request;
     ++calls;
     return result_;
@@ -23,11 +23,11 @@ public:
   int calls = 0;
   octopus::CompletionRequest last_request;
 
-private:
+ private:
   octopus::CompletionResult result_;
 };
 
-} // namespace
+}  // namespace
 
 TEST_CASE("ask options build a message-shaped completion request", "[ask]") {
   octopus::CliOptions options;

@@ -9,23 +9,23 @@
 namespace octopus {
 namespace {
 
-constexpr const char *kAssistantPrompt = "octopus> ";
+constexpr const char* kAssistantPrompt = "octopus> ";
 
-bool completion_failed(const CompletionResult &completion) {
+bool completion_failed(const CompletionResult& completion) {
   return completion.finish_reason == FinishReason::BackendError;
 }
 
-void report_backend_error(const CompletionResult &completion,
-                          std::ostream &err) {
+void report_backend_error(const CompletionResult& completion,
+                          std::ostream& err) {
   err << (completion.error.empty() ? "LLM backend error" : completion.error)
       << '\n';
 }
 
 class ChatOutputSink final : public CompletionSink {
-public:
-  explicit ChatOutputSink(std::ostream &out) : out_(out) {}
+ public:
+  explicit ChatOutputSink(std::ostream& out) : out_(out) {}
 
-  void on_text(const CompletionChunk &chunk) override {
+  void on_text(const CompletionChunk& chunk) override {
     if (chunk.text.empty()) {
       return;
     }
@@ -48,7 +48,7 @@ public:
     }
   }
 
-private:
+ private:
   void ensure_started() {
     if (!started_) {
       out_ << kAssistantPrompt;
@@ -56,15 +56,15 @@ private:
     }
   }
 
-  std::ostream &out_;
+  std::ostream& out_;
   bool started_ = false;
 };
 
-} // namespace
+}  // namespace
 
-ChatRunResult run_cli_chat(const CliOptions &options, LlmBackend &backend,
-                           std::istream &in, std::ostream &out,
-                           std::ostream &err) {
+ChatRunResult run_cli_chat(const CliOptions& options, LlmBackend& backend,
+                           std::istream& in, std::ostream& out,
+                           std::ostream& err) {
   ChatRunResult result;
   Conversation conversation;
   std::string line;
@@ -99,4 +99,4 @@ ChatRunResult run_cli_chat(const CliOptions &options, LlmBackend &backend,
   }
 }
 
-} // namespace octopus
+}  // namespace octopus

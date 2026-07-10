@@ -5,7 +5,8 @@
 #include <string>
 #include <vector>
 
-TEST_CASE("CLI defaults to interactive chat mode without model flags", "[cli]") {
+TEST_CASE("CLI defaults to interactive chat mode without model flags",
+          "[cli]") {
   const auto result = octopus::parse_cli({"octo"});
 
   REQUIRE(result.ok);
@@ -22,8 +23,8 @@ TEST_CASE("CLI defaults to interactive chat mode without model flags", "[cli]") 
 
 TEST_CASE("CLI parses one-shot ask prompts without exposing model knobs",
           "[cli]") {
-  const auto result = octopus::parse_cli(
-      {"octo", "ask", "Who", "was", "John", "Kennedy?"});
+  const auto result =
+      octopus::parse_cli({"octo", "ask", "Who", "was", "John", "Kennedy?"});
 
   REQUIRE(result.ok);
   CHECK(result.options.mode == octopus::CliMode::Ask);
@@ -34,7 +35,8 @@ TEST_CASE("CLI parses one-shot ask prompts without exposing model knobs",
   CHECK(result.options.quiet);
 }
 
-TEST_CASE("CLI help exposes modes instead of low-level runtime knobs", "[cli]") {
+TEST_CASE("CLI help exposes modes instead of low-level runtime knobs",
+          "[cli]") {
   const auto result = octopus::parse_cli({"octo", "--help"});
 
   CHECK(result.ok);

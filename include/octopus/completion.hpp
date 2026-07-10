@@ -12,16 +12,16 @@ namespace octopus {
  * configured boundary. It trims the boundary so users do not see model syntax.
  */
 class StopDetector {
-public:
+ public:
   explicit StopDetector(std::vector<std::string> stop_strings);
 
   bool append(std::string_view chunk);
   void truncate(std::size_t size);
 
-  const std::string &text() const noexcept;
-  const std::vector<std::string> &stop_strings() const noexcept;
+  const std::string& text() const noexcept;
+  const std::vector<std::string>& stop_strings() const noexcept;
 
-private:
+ private:
   std::vector<std::string> stop_strings_;
   std::string text_;
 };
@@ -32,13 +32,13 @@ private:
  * delimiters such as "<end_of_turn>".
  */
 class StopSafeTextBuffer {
-public:
+ public:
   explicit StopSafeTextBuffer(std::vector<std::string> stop_strings);
 
   std::string append(std::string_view chunk);
   std::string flush(std::string_view final_text);
 
-private:
+ private:
   std::size_t max_stop_size_ = 0;
   std::size_t emitted_size_ = 0;
   std::string buffer_;
@@ -49,14 +49,14 @@ private:
  * scoring; it is a practical safety net for raw decoding loops.
  */
 class LoopDetector {
-public:
+ public:
   bool append(std::string_view chunk);
 
   bool detected() const noexcept;
   std::size_t generated_size() const noexcept;
   std::size_t trim_size() const noexcept;
 
-private:
+ private:
   bool detect_repeated_lines();
   bool detect_repeated_windows();
   void record_detection(std::size_t unit_size);
@@ -67,4 +67,4 @@ private:
   bool detected_ = false;
 };
 
-} // namespace octopus
+}  // namespace octopus

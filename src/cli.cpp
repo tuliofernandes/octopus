@@ -10,7 +10,7 @@
 namespace octopus {
 namespace {
 
-constexpr const char *kProgramName = "octo";
+constexpr const char* kProgramName = "octo";
 
 std::string help_text() {
   std::ostringstream output;
@@ -27,25 +27,25 @@ std::string help_text() {
   return output.str();
 }
 
-bool is_help_flag(const std::string &argument) {
+bool is_help_flag(const std::string& argument) {
   return argument == "-h" || argument == "--help";
 }
 
-bool asks_for_help(const std::vector<std::string> &arguments) {
+bool asks_for_help(const std::vector<std::string>& arguments) {
   return std::find_if(arguments.begin(), arguments.end(), is_help_flag) !=
          arguments.end();
 }
 
-std::string join_prompt(const std::vector<std::string> &prompt_tokens) {
-  return std::accumulate(std::next(prompt_tokens.begin()), prompt_tokens.end(),
-                         prompt_tokens.empty() ? std::string{} : prompt_tokens[0],
-                         [](const std::string &left,
-                           const std::string &right) {
-                           return left + (left.empty() ? "" : " ") + right;
-                         });
+std::string join_prompt(const std::vector<std::string>& prompt_tokens) {
+  return std::accumulate(
+      std::next(prompt_tokens.begin()), prompt_tokens.end(),
+      prompt_tokens.empty() ? std::string{} : prompt_tokens[0],
+      [](const std::string& left, const std::string& right) {
+        return left + (left.empty() ? "" : " ") + right;
+      });
 }
 
-CliParseResult error_result(const std::string &message) {
+CliParseResult error_result(const std::string& message) {
   CliParseResult result;
   result.exit_code = 1;
   result.error = message;
@@ -53,11 +53,11 @@ CliParseResult error_result(const std::string &message) {
   return result;
 }
 
-bool contains_low_level_flag(const std::vector<std::string> &arguments,
-                             std::string &flag) {
+bool contains_low_level_flag(const std::vector<std::string>& arguments,
+                             std::string& flag) {
   const std::vector<std::string> low_level_flags{
-      "-m", "--model", "-n", "--n_predict", "-ngl", "--n_gpu_layers", "-q",
-      "--quiet"};
+      "-m",   "--model",        "-n", "--n_predict",
+      "-ngl", "--n_gpu_layers", "-q", "--quiet"};
 
   const auto found =
       std::find_first_of(arguments.begin(), arguments.end(),
@@ -70,9 +70,9 @@ bool contains_low_level_flag(const std::vector<std::string> &arguments,
   return true;
 }
 
-} // namespace
+}  // namespace
 
-CliParseResult parse_cli(const std::vector<std::string> &arguments) {
+CliParseResult parse_cli(const std::vector<std::string>& arguments) {
   if (arguments.empty()) {
     return error_result("missing program name");
   }
@@ -110,11 +110,10 @@ CliParseResult parse_cli(const std::vector<std::string> &arguments) {
   result.ok = true;
   result.exit_code = 0;
   result.options.mode = CliMode::Ask;
-  result.options.prompt =
-      join_prompt(std::vector<std::string>{arguments.begin() + 2,
-                                           arguments.end()});
+  result.options.prompt = join_prompt(
+      std::vector<std::string>{arguments.begin() + 2, arguments.end()});
 
   return result;
 }
 
-} // namespace octopus
+}  // namespace octopus

@@ -9,10 +9,9 @@ namespace {
  * These prompts are the first Octopus policy layer. They are intentionally
  * short: the harness should shape behavior without drowning out the user.
  */
-constexpr const char *kSystemPrompt =
-    "You are Octopus, an AI agent for UNIX.";
+constexpr const char* kSystemPrompt = "You are Octopus, an AI agent for UNIX.";
 
-constexpr const char *kDeveloperPrompt =
+constexpr const char* kDeveloperPrompt =
     "Answer the user's request directly. If you are unsure, say so.";
 
 constexpr int kAskRepeatLastN = 64;
@@ -22,25 +21,25 @@ constexpr float kAskRepeatPenalty = 1.05F;
  * Only transport/backend failures should make the CLI fail. Other finish
  * reasons, including loop detection, can still produce user-visible text.
  */
-bool completion_failed(const CompletionResult &completion) {
+bool completion_failed(const CompletionResult& completion) {
   return completion.finish_reason == FinishReason::BackendError;
 }
 
-} // namespace
+}  // namespace
 
-CompletionRequest make_ask_request(const CliOptions &options) {
+CompletionRequest make_ask_request(const CliOptions& options) {
   return make_ask_request(options, ModelProfile::gemma_instruction());
 }
 
-CompletionRequest make_conversation_request(const CliOptions &options,
-                                            const Conversation &conversation) {
+CompletionRequest make_conversation_request(const CliOptions& options,
+                                            const Conversation& conversation) {
   return make_conversation_request(options, conversation,
                                    ModelProfile::gemma_instruction());
 }
 
-CompletionRequest make_conversation_request(const CliOptions &options,
-                                            const Conversation &conversation,
-                                            const ModelProfile &profile) {
+CompletionRequest make_conversation_request(const CliOptions& options,
+                                            const Conversation& conversation,
+                                            const ModelProfile& profile) {
   CompletionRequest request;
   request.model_profile = profile;
   /**
@@ -67,15 +66,15 @@ CompletionRequest make_conversation_request(const CliOptions &options,
   return request;
 }
 
-CompletionRequest make_ask_request(const CliOptions &options,
-                                   const ModelProfile &profile) {
+CompletionRequest make_ask_request(const CliOptions& options,
+                                   const ModelProfile& profile) {
   Conversation conversation;
   conversation.messages.push_back({Role::User, options.prompt});
   return make_conversation_request(options, conversation, profile);
 }
 
-AskRunResult run_one_shot_ask(const CliOptions &options, LlmBackend &backend,
-                              std::ostream &out, std::ostream &err) {
+AskRunResult run_one_shot_ask(const CliOptions& options, LlmBackend& backend,
+                              std::ostream& out, std::ostream& err) {
   AskRunResult result;
   /**
    * The runner depends only on LlmBackend, so tests can exercise CLI behavior
@@ -95,4 +94,4 @@ AskRunResult run_one_shot_ask(const CliOptions &options, LlmBackend &backend,
   return result;
 }
 
-} // namespace octopus
+}  // namespace octopus

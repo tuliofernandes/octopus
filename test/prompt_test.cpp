@@ -9,8 +9,7 @@ TEST_CASE("Gemma profile prefers metadata template with manual fallback",
   const auto profile = octopus::ModelProfile::gemma_instruction();
 
   CHECK(profile.prompt_renderer == octopus::PromptRenderer::LlamaChatTemplate);
-  CHECK(profile.fallback_renderer ==
-        octopus::PromptFallback::GemmaInstruction);
+  CHECK(profile.fallback_renderer == octopus::PromptFallback::GemmaInstruction);
   CHECK(profile.fold_policy_messages);
 }
 
@@ -26,7 +25,8 @@ TEST_CASE("chat template messages keep role and content storage alive",
           "[prompt]") {
   octopus::Conversation conversation;
   conversation.messages.push_back({octopus::Role::System, "System policy"});
-  conversation.messages.push_back({octopus::Role::Developer, "Developer policy"});
+  conversation.messages.push_back(
+      {octopus::Role::Developer, "Developer policy"});
   conversation.messages.push_back({octopus::Role::User, "Question"});
   conversation.messages.push_back({octopus::Role::Assistant, "Answer"});
 
@@ -50,7 +50,8 @@ TEST_CASE("Gemma chat template messages fold policy into user content",
           "[prompt]") {
   octopus::Conversation conversation;
   conversation.messages.push_back({octopus::Role::System, "System policy"});
-  conversation.messages.push_back({octopus::Role::Developer, "Developer policy"});
+  conversation.messages.push_back(
+      {octopus::Role::Developer, "Developer policy"});
   conversation.messages.push_back({octopus::Role::User, "Question"});
 
   const auto messages = octopus::make_chat_template_messages(
@@ -58,14 +59,14 @@ TEST_CASE("Gemma chat template messages fold policy into user content",
 
   REQUIRE(messages.messages.size() == 1);
   CHECK(std::string(messages.messages[0].role) == "user");
-  CHECK(std::string(messages.messages[0].content).find(
-            "Octopus operating instructions:\n") != std::string::npos);
-  CHECK(std::string(messages.messages[0].content).find(
-            "[system]\nSystem policy\n") != std::string::npos);
-  CHECK(std::string(messages.messages[0].content).find(
-            "[developer]\nDeveloper policy\n") != std::string::npos);
-  CHECK(std::string(messages.messages[0].content).find(
-            "User request:\nQuestion") != std::string::npos);
+  CHECK(std::string(messages.messages[0].content)
+            .find("Octopus operating instructions:\n") != std::string::npos);
+  CHECK(std::string(messages.messages[0].content)
+            .find("[system]\nSystem policy\n") != std::string::npos);
+  CHECK(std::string(messages.messages[0].content)
+            .find("[developer]\nDeveloper policy\n") != std::string::npos);
+  CHECK(std::string(messages.messages[0].content)
+            .find("User request:\nQuestion") != std::string::npos);
 }
 
 TEST_CASE("Gemma instruction profile renders current prompt contract",
@@ -96,8 +97,7 @@ TEST_CASE("Gemma instruction profile renders current prompt contract",
   CHECK(rendered.stop_strings[0] == "<end_of_turn>");
 }
 
-TEST_CASE("Gemma renderer folds policy into one-shot user turn",
-          "[prompt]") {
+TEST_CASE("Gemma renderer folds policy into one-shot user turn", "[prompt]") {
   octopus::Conversation conversation;
   conversation.messages.push_back(
       {octopus::Role::System, "System policy stays internal."});
@@ -113,8 +113,9 @@ TEST_CASE("Gemma renderer folds policy into one-shot user turn",
         std::string::npos);
   CHECK(rendered.text.find("[system]\nSystem policy stays internal.\n") !=
         std::string::npos);
-  CHECK(rendered.text.find("[developer]\nDeveloper guidance stays internal.\n") !=
-        std::string::npos);
+  CHECK(
+      rendered.text.find("[developer]\nDeveloper guidance stays internal.\n") !=
+      std::string::npos);
   CHECK(rendered.text.find("User request:\nSay hello in one short sentence.") !=
         std::string::npos);
   CHECK(rendered.text.find("<end_of_turn>\n<start_of_turn>model\n") !=
@@ -134,8 +135,8 @@ TEST_CASE("Gemma renderer preserves ordered user and assistant turns",
 
   const auto first_user =
       rendered.text.find("<start_of_turn>user\nFirst question<end_of_turn>\n");
-  const auto assistant = rendered.text.find(
-      "<start_of_turn>model\nFirst answer<end_of_turn>\n");
+  const auto assistant =
+      rendered.text.find("<start_of_turn>model\nFirst answer<end_of_turn>\n");
   const auto second_user =
       rendered.text.find("<start_of_turn>user\nSecond question<end_of_turn>\n");
   const auto assistant_prefix = rendered.text.rfind("<start_of_turn>model\n");

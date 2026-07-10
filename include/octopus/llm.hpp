@@ -8,7 +8,8 @@ namespace octopus {
 
 /**
  * Chat roles are the harness-level vocabulary. They let Octopus keep intent
- * structured even though the backend eventually feeds the model one token stream.
+ * structured even though the backend eventually feeds the model one token
+ * stream.
  */
 enum class Role {
   System,
@@ -98,7 +99,7 @@ struct GenerationOptionsValidation {
   std::string error;
 };
 
-inline bool repeat_penalty_enabled(const GenerationOptions &options) {
+inline bool repeat_penalty_enabled(const GenerationOptions& options) {
   return options.repeat_penalty > 1.0F || options.frequency_penalty > 0.0F ||
          options.presence_penalty > 0.0F;
 }
@@ -107,16 +108,15 @@ inline bool repeat_penalty_enabled(const GenerationOptions &options) {
  * Validate at the harness boundary so backend adapters can fail with a clear
  * error instead of passing nonsensical sampler parameters into native code.
  */
-inline GenerationOptionsValidation
-validate_generation_options(const GenerationOptions &options) {
+inline GenerationOptionsValidation validate_generation_options(
+    const GenerationOptions& options) {
   if (options.max_tokens <= 0) {
     return {false, "max_tokens must be positive"};
   }
   if (options.repeat_last_n < 0) {
     return {false, "repeat_last_n must be non-negative"};
   }
-  if (!std::isfinite(options.repeat_penalty) ||
-      options.repeat_penalty < 1.0F) {
+  if (!std::isfinite(options.repeat_penalty) || options.repeat_penalty < 1.0F) {
     return {false, "repeat_penalty must be finite and at least 1.0"};
   }
   if (!std::isfinite(options.frequency_penalty) ||
@@ -164,9 +164,9 @@ struct CompletionChunk {
 };
 
 class CompletionSink {
-public:
+ public:
   virtual ~CompletionSink() = default;
-  virtual void on_text(const CompletionChunk &chunk) = 0;
+  virtual void on_text(const CompletionChunk& chunk) = 0;
 };
 
 /**
@@ -174,11 +174,11 @@ public:
  * engine. Tests can use fakes; production currently uses llama.cpp.
  */
 class LlmBackend {
-public:
+ public:
   virtual ~LlmBackend() = default;
-  virtual CompletionResult complete(const CompletionRequest &request) = 0;
-  virtual CompletionResult complete_streaming(const CompletionRequest &request,
-                                              CompletionSink &sink) {
+  virtual CompletionResult complete(const CompletionRequest& request) = 0;
+  virtual CompletionResult complete_streaming(const CompletionRequest& request,
+                                              CompletionSink& sink) {
     CompletionResult result = complete(request);
     if (result.finish_reason != FinishReason::BackendError &&
         !result.text.empty()) {
@@ -188,4 +188,4 @@ public:
   }
 };
 
-} // namespace octopus
+}  // namespace octopus
