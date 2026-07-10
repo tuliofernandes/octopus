@@ -289,3 +289,20 @@ TEST_CASE("CLI chat treats loop-detected output as assistant history",
   CHECK(out.str().find("octopus> Useful prefix.\n") != std::string::npos);
   CHECK(err.str().empty());
 }
+
+TEST_CASE("CLI chat exits cleanly on EOF before a message", "[chat]") {
+  RecordingBackend backend({successfulCompletion("unused")});
+
+  octopus::CliOptions options;
+  options.mode = octopus::CliMode::Interactive;
+
+  std::istringstream in("");
+  std::ostringstream out;
+  std::ostringstream err;
+
+  const auto result = octopus::runCliChat(options, backend, in, out, err);
+
+  CHECK(result.exit_code == 0);
+  CHECK(backend.requests.empty());
+  CHECK(out.str() == "you> ");
+  CHECK(err.str().empty());
