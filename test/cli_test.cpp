@@ -7,7 +7,7 @@
 
 TEST_CASE("CLI defaults to interactive chat mode without model flags",
           "[cli]") {
-  const auto result = octopus::parse_cli({"octo"});
+  const auto result = octopus::parseCli({"octo"});
 
   REQUIRE(result.ok);
   CHECK(result.exit_code == 0);
@@ -24,7 +24,7 @@ TEST_CASE("CLI defaults to interactive chat mode without model flags",
 TEST_CASE("CLI parses one-shot ask prompts without exposing model knobs",
           "[cli]") {
   const auto result =
-      octopus::parse_cli({"octo", "ask", "Who", "was", "John", "Kennedy?"});
+      octopus::parseCli({"octo", "ask", "Who", "was", "John", "Kennedy?"});
 
   REQUIRE(result.ok);
   CHECK(result.options.mode == octopus::CliMode::Ask);
@@ -37,7 +37,7 @@ TEST_CASE("CLI parses one-shot ask prompts without exposing model knobs",
 
 TEST_CASE("CLI help exposes modes instead of low-level runtime knobs",
           "[cli]") {
-  const auto result = octopus::parse_cli({"octo", "--help"});
+  const auto result = octopus::parseCli({"octo", "--help"});
 
   CHECK(result.ok);
   CHECK(result.exit_code == 0);
@@ -55,7 +55,7 @@ TEST_CASE("CLI help exposes modes instead of low-level runtime knobs",
 }
 
 TEST_CASE("CLI requires ask to include a prompt", "[cli]") {
-  const auto result = octopus::parse_cli({"octo", "ask"});
+  const auto result = octopus::parseCli({"octo", "ask"});
 
   CHECK_FALSE(result.ok);
   CHECK(result.exit_code == 1);
@@ -64,7 +64,7 @@ TEST_CASE("CLI requires ask to include a prompt", "[cli]") {
 }
 
 TEST_CASE("CLI rejects low-level runtime flags", "[cli]") {
-  const auto result = octopus::parse_cli({"octo", "ask", "--model", "x.gguf"});
+  const auto result = octopus::parseCli({"octo", "ask", "--model", "x.gguf"});
 
   CHECK_FALSE(result.ok);
   CHECK(result.exit_code == 1);

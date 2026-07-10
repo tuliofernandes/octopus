@@ -21,7 +21,7 @@ std::vector<std::string> argv_to_strings(int argc, char** argv) {
 }  // namespace
 
 int main(int argc, char** argv) {
-  const auto cli = octopus::parse_cli(argv_to_strings(argc, argv));
+  const auto cli = octopus::parseCli(argv_to_strings(argc, argv));
   if (cli.ok && !cli.help.empty()) {
     std::cout << cli.help;
   }
@@ -40,11 +40,10 @@ int main(int argc, char** argv) {
   octopus::LlamaCppBackend backend(
       {options.model_path, options.n_gpu_layers, options.quiet});
   if (options.mode == octopus::CliMode::Interactive) {
-    return octopus::run_cli_chat(options, backend, std::cin, std::cout,
-                                 std::cerr)
+    return octopus::runCliChat(options, backend, std::cin, std::cout, std::cerr)
         .exit_code;
   }
 
-  return octopus::run_one_shot_ask(options, backend, std::cout, std::cerr)
+  return octopus::runOneShotAsk(options, backend, std::cout, std::cerr)
       .exit_code;
 }

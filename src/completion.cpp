@@ -19,12 +19,12 @@ constexpr std::size_t kMinRepeatedWindowBytes = 8;
 constexpr std::size_t kMaxRepeatedWindowBytes = 96;
 
 std::vector<std::string> normalize_stop_strings(
-    std::vector<std::string> stop_strings) {
+    std::vector<std::string> stopStrings) {
   std::vector<std::string> normalized;
-  normalized.reserve(stop_strings.size());
+  normalized.reserve(stopStrings.size());
 
   // Empty stops would match everything, and duplicates only add extra checks.
-  for (auto& stop : stop_strings) {
+  for (auto& stop : stopStrings) {
     if (stop.empty()) {
       continue;
     }
@@ -46,15 +46,15 @@ std::size_t max_size(const std::vector<std::string>& values) {
 }
 
 std::size_t matching_stop_index(const std::string& text,
-                                const std::vector<std::string>& stop_strings) {
+                                const std::vector<std::string>& stopStrings) {
   std::size_t match = std::numeric_limits<std::size_t>::max();
 
   /**
    * Prefer the longest matching suffix so a short stop cannot steal a more
    * specific model delimiter that ends at the same position.
    */
-  for (std::size_t index = 0; index < stop_strings.size(); ++index) {
-    const auto& stop = stop_strings[index];
+  for (std::size_t index = 0; index < stopStrings.size(); ++index) {
+    const auto& stop = stopStrings[index];
     if (text.size() < stop.size()) {
       continue;
     }
@@ -62,7 +62,7 @@ std::size_t matching_stop_index(const std::string& text,
       continue;
     }
     if (match == std::numeric_limits<std::size_t>::max() ||
-        stop.size() > stop_strings[match].size()) {
+        stop.size() > stopStrings[match].size()) {
       match = index;
     }
   }
@@ -93,8 +93,8 @@ bool all_equal_windows(std::string_view text, std::size_t unit_size) {
 
 }  // namespace
 
-StopDetector::StopDetector(std::vector<std::string> stop_strings)
-    : stop_strings_(normalize_stop_strings(std::move(stop_strings))) {}
+StopDetector::StopDetector(std::vector<std::string> stopStrings)
+    : stop_strings_(normalize_stop_strings(std::move(stopStrings))) {}
 
 bool StopDetector::append(std::string_view chunk) {
   /**
@@ -126,13 +126,13 @@ void StopDetector::truncate(std::size_t size) {
 
 const std::string& StopDetector::text() const noexcept { return text_; }
 
-const std::vector<std::string>& StopDetector::stop_strings() const noexcept {
+const std::vector<std::string>& StopDetector::stopStrings() const noexcept {
   return stop_strings_;
 }
 
-StopSafeTextBuffer::StopSafeTextBuffer(std::vector<std::string> stop_strings)
-    : max_stop_size_(
-          max_size(normalize_stop_strings(std::move(stop_strings)))) {}
+StopSafeTextBuffer::StopSafeTextBuffer(std::vector<std::string> stopStrings)
+    : max_stop_size_(max_size(normalize_stop_strings(std::move(stopStrings)))) {
+}
 
 std::string StopSafeTextBuffer::append(std::string_view chunk) {
   if (chunk.empty()) {
@@ -179,10 +179,10 @@ bool LoopDetector::append(std::string_view chunk) {
     recent_text_.erase(0, recent_text_.size() - kLoopRecentWindow);
   }
 
-  return detect_repeated_lines() || detect_repeated_windows();
+  return detectRepeatedLines() || detectRepeatedWindows();
 }
 
-bool LoopDetector::detect_repeated_lines() {
+bool LoopDetector::detectRepeatedLines() {
   // Line loops are common visible failures: "foo\nfoo\nfoo\nfoo\n".
   if (recent_text_.empty() || recent_text_.back() != '\n') {
     return false;
@@ -218,11 +218,11 @@ bool LoopDetector::detect_repeated_lines() {
     }
   }
 
-  record_detection(lines[0].size());
+  recordDetection(lines[0].size());
   return true;
 }
 
-bool LoopDetector::detect_repeated_windows() {
+bool LoopDetector::detectRepeatedWindows() {
   // Window loops catch repeated phrases that do not align to line breaks.
   const auto max_unit_size =
       std::min(kMaxRepeatedWindowBytes, recent_text_.size() / kLoopRepeatCount);
@@ -245,14 +245,14 @@ bool LoopDetector::detect_repeated_windows() {
       continue;
     }
 
-    record_detection(unit_size);
+    recordDetection(unit_size);
     return true;
   }
 
   return false;
 }
 
-void LoopDetector::record_detection(std::size_t unit_size) {
+void LoopDetector::recordDetection(std::size_t unit_size) {
   detected_ = true;
   /**
    * Keep the first copy and trim the repeated copies. This salvages the useful
@@ -263,11 +263,11 @@ void LoopDetector::record_detection(std::size_t unit_size) {
 
 bool LoopDetector::detected() const noexcept { return detected_; }
 
-std::size_t LoopDetector::generated_size() const noexcept {
+std::size_t LoopDetector::generatedSize() const noexcept {
   return generated_size_;
 }
 
-std::size_t LoopDetector::trim_size() const noexcept {
+std::size_t LoopDetector::trimSize() const noexcept {
   return detected_ ? trim_size_ : generated_size_;
 }
 

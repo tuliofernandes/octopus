@@ -32,27 +32,27 @@ struct ChatTemplateMessages {
  */
 struct RenderedPrompt {
   std::string text;
-  std::vector<std::string> stop_strings;
+  std::vector<std::string> stopStrings;
 };
 
 /**
  * Convert generic Octopus messages into llama.cpp chat-template messages while
  * preserving storage ownership for the borrowed role/content pointers.
  */
-ChatTemplateMessages make_chat_template_messages(
-    const Conversation& conversation, const ModelProfile& profile);
+ChatTemplateMessages makeChatTemplateMessages(const Conversation& conversation,
+                                              const ModelProfile& profile);
 
 /**
  * Render through the profile-selected strategy. For metadata templates this may
  * intentionally return empty text so the backend can ask llama.cpp to render.
  */
-RenderedPrompt render_prompt(const Conversation& conversation,
-                             const ModelProfile& profile);
+RenderedPrompt renderPrompt(const Conversation& conversation,
+                            const ModelProfile& profile);
 
 /**
  * Manual Gemma renderer used as a stable fallback when GGUF metadata is missing
  * or unsupported by the linked llama.cpp version.
  */
-RenderedPrompt render_gemma_prompt(const Conversation& conversation);
+RenderedPrompt renderGemmaPrompt(const Conversation& conversation);
 
 }  // namespace octopus

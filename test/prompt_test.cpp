@@ -6,7 +6,7 @@
 
 TEST_CASE("Gemma profile prefers metadata template with manual fallback",
           "[prompt]") {
-  const auto profile = octopus::ModelProfile::gemma_instruction();
+  const auto profile = octopus::ModelProfile::gemmaInstruction();
 
   CHECK(profile.prompt_renderer == octopus::PromptRenderer::LlamaChatTemplate);
   CHECK(profile.fallback_renderer == octopus::PromptFallback::GemmaInstruction);
@@ -14,7 +14,7 @@ TEST_CASE("Gemma profile prefers metadata template with manual fallback",
 }
 
 TEST_CASE("metadata chat profile does not use manual fallback", "[prompt]") {
-  const auto profile = octopus::ModelProfile::llama_chat_template();
+  const auto profile = octopus::ModelProfile::llamaChatTemplate();
 
   CHECK(profile.prompt_renderer == octopus::PromptRenderer::LlamaChatTemplate);
   CHECK(profile.fallback_renderer == octopus::PromptFallback::None);
@@ -30,8 +30,8 @@ TEST_CASE("chat template messages keep role and content storage alive",
   conversation.messages.push_back({octopus::Role::User, "Question"});
   conversation.messages.push_back({octopus::Role::Assistant, "Answer"});
 
-  auto messages = octopus::make_chat_template_messages(
-      conversation, octopus::ModelProfile::llama_chat_template());
+  auto messages = octopus::makeChatTemplateMessages(
+      conversation, octopus::ModelProfile::llamaChatTemplate());
 
   REQUIRE(messages.messages.size() == 4);
   CHECK(std::string(messages.messages[0].role) == "system");
@@ -54,8 +54,8 @@ TEST_CASE("Gemma chat template messages fold policy into user content",
       {octopus::Role::Developer, "Developer policy"});
   conversation.messages.push_back({octopus::Role::User, "Question"});
 
-  const auto messages = octopus::make_chat_template_messages(
-      conversation, octopus::ModelProfile::gemma_instruction());
+  const auto messages = octopus::makeChatTemplateMessages(
+      conversation, octopus::ModelProfile::gemmaInstruction());
 
   REQUIRE(messages.messages.size() == 1);
   CHECK(std::string(messages.messages[0].role) == "user");
@@ -79,8 +79,8 @@ TEST_CASE("Gemma instruction profile renders current prompt contract",
   conversation.messages.push_back(
       {octopus::Role::User, "Say hello in one short sentence."});
 
-  const auto rendered = octopus::render_prompt(
-      conversation, octopus::ModelProfile::gemma_instruction());
+  const auto rendered = octopus::renderPrompt(
+      conversation, octopus::ModelProfile::gemmaInstruction());
 
   CHECK(rendered.text ==
         "<start_of_turn>user\n"
@@ -93,8 +93,8 @@ TEST_CASE("Gemma instruction profile renders current prompt contract",
         "User request:\n"
         "Say hello in one short sentence.<end_of_turn>\n"
         "<start_of_turn>model\n");
-  REQUIRE(rendered.stop_strings.size() == 1);
-  CHECK(rendered.stop_strings[0] == "<end_of_turn>");
+  REQUIRE(rendered.stopStrings.size() == 1);
+  CHECK(rendered.stopStrings[0] == "<end_of_turn>");
 }
 
 TEST_CASE("Gemma renderer folds policy into one-shot user turn", "[prompt]") {
@@ -106,7 +106,7 @@ TEST_CASE("Gemma renderer folds policy into one-shot user turn", "[prompt]") {
   conversation.messages.push_back(
       {octopus::Role::User, "Say hello in one short sentence."});
 
-  const auto rendered = octopus::render_gemma_prompt(conversation);
+  const auto rendered = octopus::renderGemmaPrompt(conversation);
 
   CHECK(rendered.text.find("<start_of_turn>user\n") == 0);
   CHECK(rendered.text.find("Octopus operating instructions:\n") !=
@@ -120,8 +120,8 @@ TEST_CASE("Gemma renderer folds policy into one-shot user turn", "[prompt]") {
         std::string::npos);
   CHECK(rendered.text.find("<end_of_turn>\n<start_of_turn>model\n") !=
         std::string::npos);
-  REQUIRE(rendered.stop_strings.size() == 1);
-  CHECK(rendered.stop_strings[0] == "<end_of_turn>");
+  REQUIRE(rendered.stopStrings.size() == 1);
+  CHECK(rendered.stopStrings[0] == "<end_of_turn>");
 }
 
 TEST_CASE("Gemma renderer preserves ordered user and assistant turns",
@@ -131,7 +131,7 @@ TEST_CASE("Gemma renderer preserves ordered user and assistant turns",
   conversation.messages.push_back({octopus::Role::Assistant, "First answer"});
   conversation.messages.push_back({octopus::Role::User, "Second question"});
 
-  const auto rendered = octopus::render_gemma_prompt(conversation);
+  const auto rendered = octopus::renderGemmaPrompt(conversation);
 
   const auto first_user =
       rendered.text.find("<start_of_turn>user\nFirst question<end_of_turn>\n");

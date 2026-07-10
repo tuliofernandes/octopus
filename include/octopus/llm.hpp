@@ -60,15 +60,15 @@ enum class PromptFallback {
 struct ModelProfile {
   PromptRenderer prompt_renderer = PromptRenderer::GemmaInstruction;
   PromptFallback fallback_renderer = PromptFallback::None;
-  std::vector<std::string> stop_strings;
+  std::vector<std::string> stopStrings;
   /**
    * Some models do not support system/developer roles directly. Folding keeps
    * those instructions visible by placing them inside the next user turn.
    */
   bool fold_policy_messages = false;
 
-  static ModelProfile gemma_instruction();
-  static ModelProfile llama_chat_template();
+  static ModelProfile gemmaInstruction();
+  static ModelProfile llamaChatTemplate();
 };
 
 /**
@@ -82,7 +82,7 @@ struct GenerationOptions {
    * Textual stops are chatbot boundaries: they prevent internal turn markers
    * from leaking into the user's visible answer.
    */
-  std::vector<std::string> stop_strings;
+  std::vector<std::string> stopStrings;
   /**
    * Repeat penalties are a light guardrail against the raw model falling into
    * repetitive next-token loops.
@@ -99,7 +99,7 @@ struct GenerationOptionsValidation {
   std::string error;
 };
 
-inline bool repeat_penalty_enabled(const GenerationOptions& options) {
+inline bool repeatPenaltyEnabled(const GenerationOptions& options) {
   return options.repeat_penalty > 1.0F || options.frequency_penalty > 0.0F ||
          options.presence_penalty > 0.0F;
 }
@@ -108,7 +108,7 @@ inline bool repeat_penalty_enabled(const GenerationOptions& options) {
  * Validate at the harness boundary so backend adapters can fail with a clear
  * error instead of passing nonsensical sampler parameters into native code.
  */
-inline GenerationOptionsValidation validate_generation_options(
+inline GenerationOptionsValidation validateGenerationOptions(
     const GenerationOptions& options) {
   if (options.max_tokens <= 0) {
     return {false, "max_tokens must be positive"};
@@ -127,7 +127,7 @@ inline GenerationOptionsValidation validate_generation_options(
       options.presence_penalty < 0.0F) {
     return {false, "presence_penalty must be finite and non-negative"};
   }
-  if (repeat_penalty_enabled(options) && options.repeat_last_n == 0) {
+  if (repeatPenaltyEnabled(options) && options.repeat_last_n == 0) {
     return {false, "repeat_last_n must be positive when penalties are enabled"};
   }
 
@@ -135,7 +135,7 @@ inline GenerationOptionsValidation validate_generation_options(
 }
 
 struct CompletionRequest {
-  ModelProfile model_profile = ModelProfile::gemma_instruction();
+  ModelProfile model_profile = ModelProfile::gemmaInstruction();
   Conversation conversation;
   GenerationOptions generation;
 };
@@ -166,7 +166,7 @@ struct CompletionChunk {
 class CompletionSink {
  public:
   virtual ~CompletionSink() = default;
-  virtual void on_text(const CompletionChunk& chunk) = 0;
+  virtual void onText(const CompletionChunk& chunk) = 0;
 };
 
 /**
@@ -177,12 +177,12 @@ class LlmBackend {
  public:
   virtual ~LlmBackend() = default;
   virtual CompletionResult complete(const CompletionRequest& request) = 0;
-  virtual CompletionResult complete_streaming(const CompletionRequest& request,
-                                              CompletionSink& sink) {
+  virtual CompletionResult completeStreaming(const CompletionRequest& request,
+                                             CompletionSink& sink) {
     CompletionResult result = complete(request);
     if (result.finish_reason != FinishReason::BackendError &&
         !result.text.empty()) {
-      sink.on_text({result.text});
+      sink.onText({result.text});
     }
     return result;
   }

@@ -36,7 +36,7 @@ TEST_CASE("ask options build a message-shaped completion request", "[ask]") {
   options.n_predict = 128;
   options.quiet = true;
 
-  const auto request = octopus::make_ask_request(options);
+  const auto request = octopus::makeAskRequest(options);
 
   REQUIRE(request.conversation.messages.size() == 3);
   CHECK(request.conversation.messages[0].role == octopus::Role::System);
@@ -52,37 +52,37 @@ TEST_CASE("ask options build a message-shaped completion request", "[ask]") {
   CHECK(request.generation.repeat_penalty == 1.05F);
   CHECK(request.generation.frequency_penalty == 0.0F);
   CHECK(request.generation.presence_penalty == 0.0F);
-  CHECK(octopus::repeat_penalty_enabled(request.generation));
-  REQUIRE(request.generation.stop_strings.size() == 1);
-  CHECK(request.generation.stop_strings[0] == "<end_of_turn>");
+  CHECK(octopus::repeatPenaltyEnabled(request.generation));
+  REQUIRE(request.generation.stopStrings.size() == 1);
+  CHECK(request.generation.stopStrings[0] == "<end_of_turn>");
 }
 
 TEST_CASE("generation options validate repeat penalty policy", "[ask]") {
   octopus::GenerationOptions options;
-  CHECK(octopus::validate_generation_options(options).ok);
+  CHECK(octopus::validateGenerationOptions(options).ok);
 
   options.repeat_penalty = 1.05F;
-  auto validation = octopus::validate_generation_options(options);
+  auto validation = octopus::validateGenerationOptions(options);
   CHECK_FALSE(validation.ok);
   CHECK(validation.error.find("repeat_last_n") != std::string::npos);
 
   options.repeat_last_n = 64;
-  CHECK(octopus::validate_generation_options(options).ok);
+  CHECK(octopus::validateGenerationOptions(options).ok);
 
   options.repeat_penalty = 0.95F;
-  validation = octopus::validate_generation_options(options);
+  validation = octopus::validateGenerationOptions(options);
   CHECK_FALSE(validation.ok);
   CHECK(validation.error.find("repeat_penalty") != std::string::npos);
 
   options.repeat_penalty = 1.05F;
   options.frequency_penalty = -0.1F;
-  validation = octopus::validate_generation_options(options);
+  validation = octopus::validateGenerationOptions(options);
   CHECK_FALSE(validation.ok);
   CHECK(validation.error.find("frequency_penalty") != std::string::npos);
 
   options.frequency_penalty = 0.0F;
   options.presence_penalty = -0.1F;
-  validation = octopus::validate_generation_options(options);
+  validation = octopus::validateGenerationOptions(options);
   CHECK_FALSE(validation.ok);
   CHECK(validation.error.find("presence_penalty") != std::string::npos);
 }
@@ -92,17 +92,17 @@ TEST_CASE("ask request accepts selected model profile policy", "[ask]") {
   options.mode = octopus::CliMode::Ask;
   options.prompt = "Say hello";
 
-  auto profile = octopus::ModelProfile::gemma_instruction();
-  profile.stop_strings = {"<custom-profile-stop>"};
+  auto profile = octopus::ModelProfile::gemmaInstruction();
+  profile.stopStrings = {"<custom-profile-stop>"};
 
-  const auto request = octopus::make_ask_request(options, profile);
+  const auto request = octopus::makeAskRequest(options, profile);
 
   CHECK(request.model_profile.prompt_renderer ==
         octopus::PromptRenderer::LlamaChatTemplate);
   CHECK(request.model_profile.fallback_renderer ==
         octopus::PromptFallback::GemmaInstruction);
-  REQUIRE(request.generation.stop_strings.size() == 1);
-  CHECK(request.generation.stop_strings[0] == "<custom-profile-stop>");
+  REQUIRE(request.generation.stopStrings.size() == 1);
+  CHECK(request.generation.stopStrings[0] == "<custom-profile-stop>");
 }
 
 TEST_CASE("one-shot ask prints only successful completion text", "[ask]") {
@@ -118,7 +118,7 @@ TEST_CASE("one-shot ask prints only successful completion text", "[ask]") {
 
   std::ostringstream out;
   std::ostringstream err;
-  const auto result = octopus::run_one_shot_ask(options, backend, out, err);
+  const auto result = octopus::runOneShotAsk(options, backend, out, err);
 
   CHECK(result.exit_code == 0);
   CHECK(backend.calls == 1);
@@ -126,8 +126,8 @@ TEST_CASE("one-shot ask prints only successful completion text", "[ask]") {
         octopus::PromptRenderer::LlamaChatTemplate);
   CHECK(backend.last_request.model_profile.fallback_renderer ==
         octopus::PromptFallback::GemmaInstruction);
-  REQUIRE(backend.last_request.generation.stop_strings.size() == 1);
-  CHECK(backend.last_request.generation.stop_strings[0] == "<end_of_turn>");
+  REQUIRE(backend.last_request.generation.stopStrings.size() == 1);
+  CHECK(backend.last_request.generation.stopStrings[0] == "<end_of_turn>");
   CHECK(backend.last_request.conversation.messages.back().content ==
         "Say hello");
   CHECK(out.str() == "Hello from the fake backend.\n");
@@ -148,7 +148,7 @@ TEST_CASE("one-shot ask treats loop detection as a successful completion",
 
   std::ostringstream out;
   std::ostringstream err;
-  const auto result = octopus::run_one_shot_ask(options, backend, out, err);
+  const auto result = octopus::runOneShotAsk(options, backend, out, err);
 
   CHECK(result.exit_code == 0);
   CHECK(backend.calls == 1);
@@ -168,7 +168,7 @@ TEST_CASE("one-shot ask reports backend errors on stderr", "[ask]") {
 
   std::ostringstream out;
   std::ostringstream err;
-  const auto result = octopus::run_one_shot_ask(options, backend, out, err);
+  const auto result = octopus::runOneShotAsk(options, backend, out, err);
 
   CHECK(result.exit_code == 1);
   CHECK(out.str().empty());

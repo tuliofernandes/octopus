@@ -25,7 +25,7 @@ class ChatOutputSink final : public CompletionSink {
  public:
   explicit ChatOutputSink(std::ostream& out) : out_(out) {}
 
-  void on_text(const CompletionChunk& chunk) override {
+  void onText(const CompletionChunk& chunk) override {
     if (chunk.text.empty()) {
       return;
     }
@@ -62,9 +62,9 @@ class ChatOutputSink final : public CompletionSink {
 
 }  // namespace
 
-ChatRunResult run_cli_chat(const CliOptions& options, LlmBackend& backend,
-                           std::istream& in, std::ostream& out,
-                           std::ostream& err) {
+ChatRunResult runCliChat(const CliOptions& options, LlmBackend& backend,
+                         std::istream& in, std::ostream& out,
+                         std::ostream& err) {
   ChatRunResult result;
   Conversation conversation;
   std::string line;
@@ -83,8 +83,8 @@ ChatRunResult run_cli_chat(const CliOptions& options, LlmBackend& backend,
 
     conversation.messages.push_back({Role::User, line});
     ChatOutputSink sink(out);
-    result.last_completion = backend.complete_streaming(
-        make_conversation_request(options, conversation), sink);
+    result.last_completion = backend.completeStreaming(
+        makeConversationRequest(options, conversation), sink);
 
     if (completion_failed(result.last_completion)) {
       result.exit_code = 1;

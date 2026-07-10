@@ -18,8 +18,8 @@ struct ChatRunResult {
  * Run the plain stdin/stdout multi-turn chat loop. Streams and backend are
  * borrowed only for the duration of the call.
  */
-ChatRunResult run_cli_chat(const CliOptions& options, LlmBackend& backend,
-                           std::istream& in, std::ostream& out,
-                           std::ostream& err);
+ChatRunResult runCliChat(const CliOptions& options, LlmBackend& backend,
+                         std::istream& in, std::ostream& out,
+                         std::ostream& err);
 
 }  // namespace octopus

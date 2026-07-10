@@ -129,7 +129,7 @@ void emit_text(CompletionSink* sink, std::string text) {
     return;
   }
 
-  sink->on_text({std::move(text)});
+  sink->onText({std::move(text)});
 }
 
 bool has_gemma_fallback(const ModelProfile& profile) {
@@ -207,7 +207,7 @@ BackendPromptResult prompt_error(std::string message) {
 
 BackendPromptResult manual_prompt(const CompletionRequest& request) {
   BackendPromptResult result;
-  result.rendered = render_prompt(request.conversation, request.model_profile);
+  result.rendered = renderPrompt(request.conversation, request.model_profile);
   return result;
 }
 
@@ -228,7 +228,7 @@ BackendPromptResult apply_model_chat_template(
   }
 
   const auto template_messages =
-      make_chat_template_messages(request.conversation, request.model_profile);
+      makeChatTemplateMessages(request.conversation, request.model_profile);
   std::vector<llama_chat_message> chat;
   chat.reserve(template_messages.messages.size());
   for (const auto& message : template_messages.messages) {
@@ -287,7 +287,7 @@ BackendPromptResult apply_model_chat_template(
     result.rendered.text.assign(buffer.data(),
                                 static_cast<std::size_t>(actual));
   }
-  result.rendered.stop_strings = request.model_profile.stop_strings;
+  result.rendered.stopStrings = request.model_profile.stopStrings;
   return result;
 }
 
@@ -343,8 +343,8 @@ struct LlamaCppBackend::Impl {
     return complete_impl(request, nullptr);
   }
 
-  CompletionResult complete_streaming(const CompletionRequest& request,
-                                      CompletionSink& sink) {
+  CompletionResult completeStreaming(const CompletionRequest& request,
+                                     CompletionSink& sink) {
     return complete_impl(request, &sink);
   }
 
@@ -354,7 +354,7 @@ struct LlamaCppBackend::Impl {
      * The adapter validates generic harness policy before translating it to
      * llama.cpp objects.
      */
-    const auto validation = validate_generation_options(request.generation);
+    const auto validation = validateGenerationOptions(request.generation);
     if (!validation.ok) {
       return backend_error(validation.error);
     }
@@ -372,13 +372,13 @@ struct LlamaCppBackend::Impl {
      * Prompt-format stops and caller-requested stops are both output
      * boundaries, so they are enforced by the same detector.
      */
-    std::vector<std::string> stop_strings = rendered.stop_strings;
-    stop_strings.insert(stop_strings.end(),
-                        request.generation.stop_strings.begin(),
-                        request.generation.stop_strings.end());
-    StopDetector stop_detector(std::move(stop_strings));
+    std::vector<std::string> stopStrings = rendered.stopStrings;
+    stopStrings.insert(stopStrings.end(),
+                       request.generation.stopStrings.begin(),
+                       request.generation.stopStrings.end());
+    StopDetector stop_detector(std::move(stopStrings));
     LoopDetector loop_detector;
-    StopSafeTextBuffer text_buffer(stop_detector.stop_strings());
+    StopSafeTextBuffer text_buffer(stop_detector.stopStrings());
 
     const llama_vocab* vocab = llama_model_get_vocab(model.get());
     if (vocab == nullptr) {
@@ -423,7 +423,7 @@ struct LlamaCppBackend::Impl {
     if (sampler == nullptr) {
       return backend_error("failed to create llama sampler");
     }
-    if (repeat_penalty_enabled(request.generation)) {
+    if (repeatPenaltyEnabled(request.generation)) {
       /**
        * Penalties run before greedy selection, nudging the token distribution
        * away from recent repetition while keeping deterministic output.
@@ -499,7 +499,7 @@ struct LlamaCppBackend::Impl {
          * LoopDetected is still a usable completion: trim repeated suffixes and
          * let the caller print the cleaned answer.
          */
-        stop_detector.truncate(loop_detector.trim_size());
+        stop_detector.truncate(loop_detector.trimSize());
         result.finish_reason = FinishReason::LoopDetected;
         emit_text(sink, text_buffer.flush(stop_detector.text()));
         break;
@@ -538,9 +538,9 @@ CompletionResult LlamaCppBackend::complete(const CompletionRequest& request) {
   return impl_->complete(request);
 }
 
-CompletionResult LlamaCppBackend::complete_streaming(
+CompletionResult LlamaCppBackend::completeStreaming(
     const CompletionRequest& request, CompletionSink& sink) {
-  return impl_->complete_streaming(request, sink);
+  return impl_->completeStreaming(request, sink);
 }
 
 }  // namespace octopus

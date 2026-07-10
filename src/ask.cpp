@@ -27,19 +27,19 @@ bool completion_failed(const CompletionResult& completion) {
 
 }  // namespace
 
-CompletionRequest make_ask_request(const CliOptions& options) {
-  return make_ask_request(options, ModelProfile::gemma_instruction());
+CompletionRequest makeAskRequest(const CliOptions& options) {
+  return makeAskRequest(options, ModelProfile::gemmaInstruction());
 }
 
-CompletionRequest make_conversation_request(const CliOptions& options,
-                                            const Conversation& conversation) {
-  return make_conversation_request(options, conversation,
-                                   ModelProfile::gemma_instruction());
+CompletionRequest makeConversationRequest(const CliOptions& options,
+                                          const Conversation& conversation) {
+  return makeConversationRequest(options, conversation,
+                                 ModelProfile::gemmaInstruction());
 }
 
-CompletionRequest make_conversation_request(const CliOptions& options,
-                                            const Conversation& conversation,
-                                            const ModelProfile& profile) {
+CompletionRequest makeConversationRequest(const CliOptions& options,
+                                          const Conversation& conversation,
+                                          const ModelProfile& profile) {
   CompletionRequest request;
   request.model_profile = profile;
   /**
@@ -58,7 +58,7 @@ CompletionRequest make_conversation_request(const CliOptions& options,
   request.generation.max_tokens = options.n_predict;
   request.generation.sampler_profile = SamplerProfile::Deterministic;
   request.generation.quiet = options.quiet;
-  request.generation.stop_strings = profile.stop_strings;
+  request.generation.stopStrings = profile.stopStrings;
   request.generation.repeat_last_n = kAskRepeatLastN;
   request.generation.repeat_penalty = kAskRepeatPenalty;
   request.generation.frequency_penalty = 0.0F;
@@ -66,21 +66,21 @@ CompletionRequest make_conversation_request(const CliOptions& options,
   return request;
 }
 
-CompletionRequest make_ask_request(const CliOptions& options,
-                                   const ModelProfile& profile) {
+CompletionRequest makeAskRequest(const CliOptions& options,
+                                 const ModelProfile& profile) {
   Conversation conversation;
   conversation.messages.push_back({Role::User, options.prompt});
-  return make_conversation_request(options, conversation, profile);
+  return makeConversationRequest(options, conversation, profile);
 }
 
-AskRunResult run_one_shot_ask(const CliOptions& options, LlmBackend& backend,
-                              std::ostream& out, std::ostream& err) {
+AskRunResult runOneShotAsk(const CliOptions& options, LlmBackend& backend,
+                           std::ostream& out, std::ostream& err) {
   AskRunResult result;
   /**
    * The runner depends only on LlmBackend, so tests can exercise CLI behavior
    * with a fake backend instead of loading a real GGUF model.
    */
-  result.completion = backend.complete(make_ask_request(options));
+  result.completion = backend.complete(makeAskRequest(options));
 
   if (completion_failed(result.completion)) {
     result.exit_code = 1;

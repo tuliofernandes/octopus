@@ -78,7 +78,7 @@ std::string policy_prelude(const std::vector<Message>& policy_messages) {
 
 }  // namespace
 
-ModelProfile ModelProfile::gemma_instruction() {
+ModelProfile ModelProfile::gemmaInstruction() {
   ModelProfile profile;
   /**
    * Prefer the GGUF template when available because it is model-authored
@@ -86,12 +86,12 @@ ModelProfile ModelProfile::gemma_instruction() {
    */
   profile.prompt_renderer = PromptRenderer::LlamaChatTemplate;
   profile.fallback_renderer = PromptFallback::GemmaInstruction;
-  profile.stop_strings = {kGemmaEndOfTurn};
+  profile.stopStrings = {kGemmaEndOfTurn};
   profile.fold_policy_messages = true;
   return profile;
 }
 
-ModelProfile ModelProfile::llama_chat_template() {
+ModelProfile ModelProfile::llamaChatTemplate() {
   ModelProfile profile;
   /**
    * Strict metadata profile: useful for models where Octopus has no manual
@@ -102,8 +102,8 @@ ModelProfile ModelProfile::llama_chat_template() {
   return profile;
 }
 
-ChatTemplateMessages make_chat_template_messages(
-    const Conversation& conversation, const ModelProfile& profile) {
+ChatTemplateMessages makeChatTemplateMessages(const Conversation& conversation,
+                                              const ModelProfile& profile) {
   ChatTemplateMessages result;
   result.role_storage.reserve(conversation.messages.size());
   result.content_storage.reserve(conversation.messages.size());
@@ -146,33 +146,33 @@ ChatTemplateMessages make_chat_template_messages(
   return result;
 }
 
-RenderedPrompt render_prompt(const Conversation& conversation,
-                             const ModelProfile& profile) {
+RenderedPrompt renderPrompt(const Conversation& conversation,
+                            const ModelProfile& profile) {
   /**
    * This function is intentionally fallback-oriented. The llama.cpp metadata
    * path is handled in the backend because it needs the loaded model object.
    */
   switch (profile.prompt_renderer) {
     case PromptRenderer::GemmaInstruction: {
-      auto rendered = render_gemma_prompt(conversation);
-      rendered.stop_strings = profile.stop_strings;
+      auto rendered = renderGemmaPrompt(conversation);
+      rendered.stopStrings = profile.stopStrings;
       return rendered;
     }
     case PromptRenderer::LlamaChatTemplate:
       if (profile.fallback_renderer == PromptFallback::GemmaInstruction) {
-        auto rendered = render_gemma_prompt(conversation);
-        rendered.stop_strings = profile.stop_strings;
+        auto rendered = renderGemmaPrompt(conversation);
+        rendered.stopStrings = profile.stopStrings;
         return rendered;
       }
-      return {{}, profile.stop_strings};
+      return {{}, profile.stopStrings};
   }
 
-  auto rendered = render_gemma_prompt(conversation);
-  rendered.stop_strings = profile.stop_strings;
+  auto rendered = renderGemmaPrompt(conversation);
+  rendered.stopStrings = profile.stopStrings;
   return rendered;
 }
 
-RenderedPrompt render_gemma_prompt(const Conversation& conversation) {
+RenderedPrompt renderGemmaPrompt(const Conversation& conversation) {
   std::ostringstream output;
   /**
    * Gemma does not receive separate system/developer turns in our manual

@@ -33,8 +33,8 @@ class LlamaCppBackend final : public LlmBackend {
   LlamaCppBackend& operator=(LlamaCppBackend&&) noexcept;
 
   CompletionResult complete(const CompletionRequest& request) override;
-  CompletionResult complete_streaming(const CompletionRequest& request,
-                                      CompletionSink& sink) override;
+  CompletionResult completeStreaming(const CompletionRequest& request,
+                                     CompletionSink& sink) override;
 
  private:
   struct Impl;

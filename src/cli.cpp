@@ -72,7 +72,7 @@ bool contains_low_level_flag(const std::vector<std::string>& arguments,
 
 }  // namespace
 
-CliParseResult parse_cli(const std::vector<std::string>& arguments) {
+CliParseResult parseCli(const std::vector<std::string>& arguments) {
   if (arguments.empty()) {
     return error_result("missing program name");
   }

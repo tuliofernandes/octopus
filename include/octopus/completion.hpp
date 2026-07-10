@@ -13,13 +13,13 @@ namespace octopus {
  */
 class StopDetector {
  public:
-  explicit StopDetector(std::vector<std::string> stop_strings);
+  explicit StopDetector(std::vector<std::string> stopStrings);
 
   bool append(std::string_view chunk);
   void truncate(std::size_t size);
 
   const std::string& text() const noexcept;
-  const std::vector<std::string>& stop_strings() const noexcept;
+  const std::vector<std::string>& stopStrings() const noexcept;
 
  private:
   std::vector<std::string> stop_strings_;
@@ -33,7 +33,7 @@ class StopDetector {
  */
 class StopSafeTextBuffer {
  public:
-  explicit StopSafeTextBuffer(std::vector<std::string> stop_strings);
+  explicit StopSafeTextBuffer(std::vector<std::string> stopStrings);
 
   std::string append(std::string_view chunk);
   std::string flush(std::string_view final_text);
@@ -53,13 +53,13 @@ class LoopDetector {
   bool append(std::string_view chunk);
 
   bool detected() const noexcept;
-  std::size_t generated_size() const noexcept;
-  std::size_t trim_size() const noexcept;
+  std::size_t generatedSize() const noexcept;
+  std::size_t trimSize() const noexcept;
 
  private:
-  bool detect_repeated_lines();
-  bool detect_repeated_windows();
-  void record_detection(std::size_t unit_size);
+  bool detectRepeatedLines();
+  bool detectRepeatedWindows();
+  void recordDetection(std::size_t unit_size);
 
   std::string recent_text_;
   std::size_t generated_size_ = 0;
