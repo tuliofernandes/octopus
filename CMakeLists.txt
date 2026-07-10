@@ -18,6 +18,7 @@ set(OCTOPUS_FORMAT_SOURCES
         include/octopus/llama_cpp_backend.hpp
         include/octopus/llm.hpp
         include/octopus/prompt.hpp
+        include/octopus/terminal_input.hpp
         src/ask.cpp
         src/chat.cpp
         src/cli.cpp
@@ -25,12 +26,14 @@ set(OCTOPUS_FORMAT_SOURCES
         src/llama_cpp_backend.cpp
         src/main.cpp
         src/prompt.cpp
+        src/terminal_input.cpp
         test/ask_test.cpp
         test/chat_test.cpp
         test/cli_test.cpp
         test/completion_test.cpp
         test/prompt_test.cpp
-        test/smoke_test.cpp)
+        test/smoke_test.cpp
+        test/terminal_input_test.cpp)
 
 if(CLANG_FORMAT_EXE)
         add_custom_target(format-check
@@ -58,7 +61,8 @@ add_library(octopus_llm STATIC
         src/ask.cpp
         src/chat.cpp
         src/completion.cpp
-        src/prompt.cpp)
+        src/prompt.cpp
+        src/terminal_input.cpp)
 target_include_directories(octopus_llm PUBLIC include)
 target_compile_features(octopus_llm PUBLIC cxx_std_17)
 target_link_libraries(octopus_llm PUBLIC octopus_cli)
