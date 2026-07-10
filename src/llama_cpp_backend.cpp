@@ -114,6 +114,11 @@ bool failed(const CompletionResult& result) {
   return result.finish_reason == FinishReason::BackendError;
 }
 
+bool cancellationRequested(const CompletionRequest& request) {
+  return request.cancellation != nullptr &&
+         request.cancellation->isCancellationRequested();
+}
+
 void emitText(CompletionSink* sink, std::string text) {
   if (sink == nullptr || text.empty()) {
     return;
@@ -417,6 +422,13 @@ struct LlamaCppBackend::Impl {
 
     llama_token sampled_token = LLAMA_TOKEN_NULL;
     while (result.generated_tokens < request.generation.max_tokens) {
+      if (cancellationRequested(request)) {
+        result.finish_reason = FinishReason::Cancelled;
+        result.text = stop_detector.text();
+        emitText(sink, text_buffer.flush(result.text));
+        return result;
+      }
+
       // The first decode evaluates the full prompt. Later iterations evaluate
       // the single token sampled in the previous loop.
       if (llama_decode(ctx.get(), batch)) {

@@ -2,6 +2,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <csignal>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -78,6 +79,35 @@ class StreamingBackend final : public octopus::LlmBackend {
   std::vector<std::vector<std::string>> chunks_;
   std::vector<octopus::CompletionResult> results_;
   std::size_t next_result_ = 0;
+};
+
+class CancellingStreamingBackend final : public octopus::LlmBackend {
+ public:
+  octopus::CompletionResult complete(
+      const octopus::CompletionRequest&) override {
+    octopus::CompletionResult completion;
+    completion.finish_reason = octopus::FinishReason::BackendError;
+    completion.error = "blocking completion should not be called";
+    return completion;
+  }
+
+  octopus::CompletionResult completeStreaming(
+      const octopus::CompletionRequest& request,
+      octopus::CompletionSink& sink) override {
+    requests.push_back(request);
+    sink.onText({"Partial"});
+    std::raise(SIGINT);
+    cancellation_observed = request.cancellation != nullptr &&
+                            request.cancellation->isCancellationRequested();
+
+    octopus::CompletionResult completion;
+    completion.text = "Partial";
+    completion.finish_reason = octopus::FinishReason::Cancelled;
+    return completion;
+  }
+
+  bool cancellation_observed = false;
+  std::vector<octopus::CompletionRequest> requests;
 };
 
 octopus::CompletionResult successfulCompletion(std::string text) {
@@ -327,3 +357,28 @@ TEST_CASE("CLI chat exits cleanly on EOF before a message", "[chat]") {
   CHECK(backend.requests.empty());
   CHECK(out.str() == "you> ");
   CHECK(err.str().empty());
+}
+
+TEST_CASE("CLI chat handles cancelled generation without assistant history",
+          "[chat]") {
+  CancellingStreamingBackend backend;
+
+  octopus::CliOptions options;
+  options.mode = octopus::CliMode::Interactive;
+
+  std::istringstream in("Hello\nAgain\n");
+  std::ostringstream out;
+  std::ostringstream err;
+
+  const auto result = octopus::runCliChat(options, backend, in, out, err);
+
+  CHECK(result.exit_code == 0);
+  CHECK(backend.cancellation_observed);
+  REQUIRE(backend.requests.size() == 2);
+  REQUIRE(backend.requests[1].conversation.messages.size() == 3);
+  CHECK(backend.requests[1].conversation.messages[2].role ==
+        octopus::Role::User);
+  CHECK(backend.requests[1].conversation.messages[2].content == "Again");
+  CHECK(out.str() == "you> octopus> Partial\nyou> octopus> Partial\nyou> ");
+  CHECK(err.str().empty());
+}

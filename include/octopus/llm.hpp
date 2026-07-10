@@ -81,6 +81,12 @@ struct GenerationOptionsValidation {
   std::string error;
 };
 
+class CancellationToken {
+ public:
+  virtual ~CancellationToken() = default;
+  virtual bool isCancellationRequested() const noexcept = 0;
+};
+
 inline bool repeatPenaltyEnabled(const GenerationOptions& options) {
   return options.repeat_penalty > 1.0F || options.frequency_penalty > 0.0F ||
          options.presence_penalty > 0.0F;
@@ -118,6 +124,7 @@ struct CompletionRequest {
   ModelProfile model_profile = ModelProfile::gemmaInstruction();
   Conversation conversation;
   GenerationOptions generation;
+  const CancellationToken* cancellation = nullptr;
 };
 
 // FinishReason tells the caller why decoding stopped. That distinction matters
@@ -127,6 +134,7 @@ enum class FinishReason {
   MaxTokens,
   EndOfGeneration,
   LoopDetected,
+  Cancelled,
   BackendError,
 };
 
@@ -157,6 +165,7 @@ class LlmBackend {
                                              CompletionSink& sink) {
     CompletionResult result = complete(request);
     if (result.finish_reason != FinishReason::BackendError &&
+        result.finish_reason != FinishReason::Cancelled &&
         !result.text.empty()) {
       sink.onText({result.text});
     }

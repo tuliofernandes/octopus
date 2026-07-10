@@ -3,6 +3,7 @@
 #include "octopus/ask.hpp"
 #include "octopus/terminal_input.hpp"
 
+#include <csignal>
 #include <istream>
 #include <ostream>
 #include <string>
@@ -13,8 +14,45 @@ namespace {
 constexpr const char* kAssistantPrompt = "octopus> ";
 constexpr const char* kUserPrompt = "you> ";
 
+volatile std::sig_atomic_t g_generation_cancelled = 0;
+
+void handleGenerationSigint(int) { g_generation_cancelled = 1; }
+
+class SignalCancellationToken final : public CancellationToken {
+ public:
+  bool isCancellationRequested() const noexcept override {
+    return g_generation_cancelled != 0;
+  }
+};
+
+class ScopedGenerationCancelHandler final {
+ public:
+  ScopedGenerationCancelHandler()
+      : previous_handler_(std::signal(SIGINT, handleGenerationSigint)) {
+    g_generation_cancelled = 0;
+  }
+
+  ScopedGenerationCancelHandler(const ScopedGenerationCancelHandler&) = delete;
+  ScopedGenerationCancelHandler& operator=(
+      const ScopedGenerationCancelHandler&) = delete;
+
+  ~ScopedGenerationCancelHandler() { std::signal(SIGINT, previous_handler_); }
+
+  const CancellationToken& token() const noexcept { return token_; }
+
+ private:
+  using SignalHandler = void (*)(int);
+
+  SignalHandler previous_handler_;
+  SignalCancellationToken token_;
+};
+
 bool completionFailed(const CompletionResult& completion) {
   return completion.finish_reason == FinishReason::BackendError;
+}
+
+bool completionCancelled(const CompletionResult& completion) {
+  return completion.finish_reason == FinishReason::Cancelled;
 }
 
 void reportBackendError(const CompletionResult& completion, std::ostream& err) {
@@ -44,6 +82,12 @@ class ChatOutputSink final : public CompletionSink {
   }
 
   void finishError() {
+    if (started_) {
+      out_ << '\n';
+    }
+  }
+
+  void finishCancelled() {
     if (started_) {
       out_ << '\n';
     }
@@ -90,14 +134,21 @@ ChatRunResult runCliChat(const CliOptions& options, LlmBackend& backend,
 
     conversation.messages.push_back({Role::User, input.text});
     ChatOutputSink sink(out);
-    result.last_completion = backend.completeStreaming(
-        makeConversationRequest(options, conversation), sink);
+    CompletionRequest request = makeConversationRequest(options, conversation);
+    ScopedGenerationCancelHandler cancel_handler;
+    request.cancellation = &cancel_handler.token();
+    result.last_completion = backend.completeStreaming(request, sink);
 
     if (completionFailed(result.last_completion)) {
       result.exit_code = 1;
       sink.finishError();
       reportBackendError(result.last_completion, err);
       return result;
+    }
+    if (completionCancelled(result.last_completion)) {
+      sink.finishCancelled();
+      conversation.messages.pop_back();
+      continue;
     }
 
     sink.finishSuccess();
