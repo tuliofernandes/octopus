@@ -9,21 +9,61 @@
 namespace octopus {
 namespace {
 
-bool completion_failed(const CompletionResult &completion) {
+constexpr const char* kAssistantPrompt = "octopus> ";
+
+bool completionFailed(const CompletionResult& completion) {
   return completion.finish_reason == FinishReason::BackendError;
 }
 
-void report_backend_error(const CompletionResult &completion,
-                          std::ostream &err) {
+void reportBackendError(const CompletionResult& completion, std::ostream& err) {
   err << (completion.error.empty() ? "LLM backend error" : completion.error)
       << '\n';
 }
 
-} // namespace
+class ChatOutputSink final : public CompletionSink {
+ public:
+  explicit ChatOutputSink(std::ostream& out) : out_(out) {}
 
-ChatRunResult run_cli_chat(const CliOptions &options, LlmBackend &backend,
-                           std::istream &in, std::ostream &out,
-                           std::ostream &err) {
+  void onText(const CompletionChunk& chunk) override {
+    if (chunk.text.empty()) {
+      return;
+    }
+
+    ensureStarted();
+    out_ << chunk.text;
+    out_.flush();
+  }
+
+  bool started() const noexcept { return started_; }
+
+  void finishSuccess() {
+    ensureStarted();
+    out_ << '\n';
+  }
+
+  void finishError() {
+    if (started_) {
+      out_ << '\n';
+    }
+  }
+
+ private:
+  void ensureStarted() {
+    if (!started_) {
+      out_ << kAssistantPrompt;
+      started_ = true;
+    }
+  }
+
+  std::ostream& out_;
+  bool started_ = false;
+};
+
+}  // namespace
+
+ChatRunResult runCliChat(const CliOptions& options, LlmBackend& backend,
+                         std::istream& in, std::ostream& out,
+                         std::ostream& err) {
   ChatRunResult result;
   Conversation conversation;
   std::string line;
@@ -41,19 +81,21 @@ ChatRunResult run_cli_chat(const CliOptions &options, LlmBackend &backend,
     }
 
     conversation.messages.push_back({Role::User, line});
-    result.last_completion =
-        backend.complete(make_conversation_request(options, conversation));
+    ChatOutputSink sink(out);
+    result.last_completion = backend.completeStreaming(
+        makeConversationRequest(options, conversation), sink);
 
-    if (completion_failed(result.last_completion)) {
+    if (completionFailed(result.last_completion)) {
       result.exit_code = 1;
-      report_backend_error(result.last_completion, err);
+      sink.finishError();
+      reportBackendError(result.last_completion, err);
       return result;
     }
 
-    out << "octopus> " << result.last_completion.text << '\n';
+    sink.finishSuccess();
     conversation.messages.push_back(
         {Role::Assistant, result.last_completion.text});
   }
 }
 
-} // namespace octopus
+}  // namespace octopus

@@ -40,9 +40,37 @@ TEST_CASE("stop detector ignores empty stop strings", "[completion]") {
 TEST_CASE("stop detector deduplicates stop strings", "[completion]") {
   octopus::StopDetector detector({"<stop>", "", "<stop>", "<other>"});
 
-  REQUIRE(detector.stop_strings().size() == 2);
-  CHECK(detector.stop_strings()[0] == "<stop>");
-  CHECK(detector.stop_strings()[1] == "<other>");
+  REQUIRE(detector.stopStrings().size() == 2);
+  CHECK(detector.stopStrings()[0] == "<stop>");
+  CHECK(detector.stopStrings()[1] == "<other>");
+}
+
+TEST_CASE("stop-safe text buffer holds possible stop suffixes",
+          "[completion]") {
+  octopus::StopSafeTextBuffer buffer({"<stop>"});
+
+  CHECK(buffer.append("abcd") == "");
+  CHECK(buffer.append("ef") == "a");
+  CHECK(buffer.flush("abcdef") == "bcdef");
+}
+
+TEST_CASE("stop-safe text buffer does not flush stop markers", "[completion]") {
+  octopus::StopSafeTextBuffer buffer({"<stop>"});
+
+  std::string visible;
+  visible += buffer.append("answer<st");
+  visible += buffer.flush("answer");
+
+  CHECK(visible == "answer");
+}
+
+TEST_CASE("stop-safe text buffer streams immediately without stops",
+          "[completion]") {
+  octopus::StopSafeTextBuffer buffer({});
+
+  CHECK(buffer.append("alpha") == "alpha");
+  CHECK(buffer.append(" beta") == " beta");
+  CHECK(buffer.flush("alpha beta") == "");
 }
 
 TEST_CASE("loop detector catches repeated identical short lines",
@@ -54,7 +82,7 @@ TEST_CASE("loop detector catches repeated identical short lines",
   CHECK_FALSE(detector.append("ready\n"));
 
   CHECK(detector.append("ready\n"));
-  CHECK(detector.trim_size() == 6);
+  CHECK(detector.trimSize() == 6);
 }
 
 TEST_CASE("loop detector catches repeated n-gram windows conservatively",
@@ -66,7 +94,7 @@ TEST_CASE("loop detector catches repeated n-gram windows conservatively",
   CHECK_FALSE(detector.append("alpha beta gamma "));
 
   CHECK(detector.append("alpha beta gamma "));
-  CHECK(detector.trim_size() == 17);
+  CHECK(detector.trimSize() == 17);
 }
 
 TEST_CASE("loop detector ignores normal short answers", "[completion]") {
@@ -75,5 +103,5 @@ TEST_CASE("loop detector ignores normal short answers", "[completion]") {
   CHECK_FALSE(detector.append("Ready."));
   CHECK_FALSE(detector.append(" The command completed successfully."));
   CHECK_FALSE(detector.detected());
-  CHECK(detector.trim_size() == detector.generated_size());
+  CHECK(detector.trimSize() == detector.generatedSize());
 }

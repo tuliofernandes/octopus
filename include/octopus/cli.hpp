@@ -27,6 +27,6 @@ struct CliParseResult {
   std::string help;
 };
 
-CliParseResult parse_cli(const std::vector<std::string> &arguments);
+CliParseResult parseCli(const std::vector<std::string>& arguments);
 
-} // namespace octopus
+}  // namespace octopus

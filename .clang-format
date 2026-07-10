@@ -1,0 +1,5 @@
+BasedOnStyle: Google
+Standard: c++17
+
+# Keep include order changes deliberate while the project is still small.
+SortIncludes: false
