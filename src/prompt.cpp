@@ -9,10 +9,8 @@ namespace {
 
 constexpr const char* kGemmaEndOfTurn = "<end_of_turn>";
 
-/**
- * Manual Gemma rendering uses Gemma's training-time role names. "Assistant" is
- * called "model" in that syntax, which is why the mapping is not symmetric.
- */
+// Manual Gemma rendering uses Gemma's training-time role names. "Assistant" is
+// called "model" in that syntax, which is why the mapping is not symmetric.
 const char* roleName(Role role) {
   switch (role) {
     case Role::System:
@@ -28,11 +26,9 @@ const char* roleName(Role role) {
   return "user";
 }
 
-/**
- * llama.cpp's generic chat-template API expects common chat roles. We collapse
- * Octopus policy roles to "system" and let the selected model template decide
- * how that role should appear in the final prompt.
- */
+// llama.cpp's generic chat-template API expects common chat roles. We collapse
+// Octopus policy roles to "system" and let the selected model template decide
+// how that role should appear in the final prompt.
 const char* chatTemplateRoleName(Role role) {
   switch (role) {
     case Role::System:
@@ -47,20 +43,16 @@ const char* chatTemplateRoleName(Role role) {
   return "user";
 }
 
-/**
- * A Gemma turn is plain text with special delimiters. This is the final shape
- * the raw model was trained to continue.
- */
+// A Gemma turn is plain text with special delimiters. This is the final shape
+// the raw model was trained to continue.
 void appendTurn(std::ostringstream& output, Role role,
                 const std::string& content) {
   output << "<start_of_turn>" << roleName(role) << '\n'
          << content << kGemmaEndOfTurn << '\n';
 }
 
-/**
- * Some models only understand user/assistant turns. Folding preserves Octopus
- * system/developer policy by embedding it into the next user message.
- */
+// Some models only understand user/assistant turns. Folding preserves Octopus
+// system/developer policy by embedding it into the next user message.
 std::string policyPrelude(const std::vector<Message>& policy_messages) {
   if (policy_messages.empty()) {
     return {};
@@ -79,10 +71,8 @@ std::string policyPrelude(const std::vector<Message>& policy_messages) {
 
 ModelProfile ModelProfile::gemmaInstruction() {
   ModelProfile profile;
-  /**
-   * Prefer the GGUF template when available because it is model-authored
-   * metadata. Keep the manual Gemma renderer as a compatibility fallback.
-   */
+  // Prefer the GGUF template when available because it is model-authored
+  // metadata. Keep the manual Gemma renderer as a compatibility fallback.
   profile.prompt_renderer = PromptRenderer::LlamaChatTemplate;
   profile.fallback_renderer = PromptFallback::GemmaInstruction;
   profile.stop_strings = {kGemmaEndOfTurn};
@@ -92,10 +82,8 @@ ModelProfile ModelProfile::gemmaInstruction() {
 
 ModelProfile ModelProfile::llamaChatTemplate() {
   ModelProfile profile;
-  /**
-   * Strict metadata profile: useful for models where Octopus has no manual
-   * renderer and should fail clearly if the GGUF template is missing.
-   */
+  // Strict metadata profile: useful for models where Octopus has no manual
+  // renderer and should fail clearly if the GGUF template is missing.
   profile.prompt_renderer = PromptRenderer::LlamaChatTemplate;
   profile.fallback_renderer = PromptFallback::None;
   return profile;
@@ -108,11 +96,9 @@ ChatTemplateMessages makeChatTemplateMessages(const Conversation& conversation,
   result.content_storage.reserve(conversation.messages.size());
   result.messages.reserve(conversation.messages.size());
 
-  /**
-   * Policy messages may need to travel inside the next user turn. Holding them
-   * here keeps the generic Conversation intact while producing model-friendly
-   * chat-template input.
-   */
+  // Policy messages may need to travel inside the next user turn. Holding them
+  // here keeps the generic Conversation intact while producing model-friendly
+  // chat-template input.
   std::vector<Message> pending_policy;
 
   for (const auto& message : conversation.messages) {
@@ -132,10 +118,8 @@ ChatTemplateMessages makeChatTemplateMessages(const Conversation& conversation,
     }
   }
 
-  /**
-   * llama_chat_apply_template borrows pointers, so build the pointer views only
-   * after role_storage/content_storage are fully populated.
-   */
+  // llama_chat_apply_template borrows pointers, so build the pointer views only
+  // after role_storage/content_storage are fully populated.
   result.messages.reserve(result.role_storage.size());
   for (std::size_t index = 0; index < result.role_storage.size(); ++index) {
     result.messages.push_back({result.role_storage[index].c_str(),
@@ -147,10 +131,8 @@ ChatTemplateMessages makeChatTemplateMessages(const Conversation& conversation,
 
 RenderedPrompt renderPrompt(const Conversation& conversation,
                             const ModelProfile& profile) {
-  /**
-   * This function is intentionally fallback-oriented. The llama.cpp metadata
-   * path is handled in the backend because it needs the loaded model object.
-   */
+  // This function is intentionally fallback-oriented. The llama.cpp metadata
+  // path is handled in the backend because it needs the loaded model object.
   switch (profile.prompt_renderer) {
     case PromptRenderer::GemmaInstruction: {
       auto rendered = renderGemmaPrompt(conversation);
@@ -173,10 +155,8 @@ RenderedPrompt renderPrompt(const Conversation& conversation,
 
 RenderedPrompt renderGemmaPrompt(const Conversation& conversation) {
   std::ostringstream output;
-  /**
-   * Gemma does not receive separate system/developer turns in our manual
-   * format, so we queue policy until the next user request.
-   */
+  // Gemma does not receive separate system/developer turns in our manual
+  // format, so we queue policy until the next user request.
   std::vector<Message> pending_policy;
 
   for (const auto& message : conversation.messages) {
@@ -195,10 +175,8 @@ RenderedPrompt renderGemmaPrompt(const Conversation& conversation) {
     appendTurn(output, message.role, message.content);
   }
 
-  /**
-   * The trailing model prefix asks the raw next-token engine to continue as the
-   * assistant/model, not as the user.
-   */
+  // The trailing model prefix asks the raw next-token engine to continue as the
+  // assistant/model, not as the user.
   output << "<start_of_turn>model\n";
 
   return {output.str(), {kGemmaEndOfTurn}};

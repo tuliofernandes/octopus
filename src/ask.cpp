@@ -5,10 +5,8 @@
 namespace octopus {
 namespace {
 
-/**
- * These prompts are the first Octopus policy layer. They are intentionally
- * short: the harness should shape behavior without drowning out the user.
- */
+// These prompts are the first Octopus policy layer. They are intentionally
+// short: the harness should shape behavior without drowning out the user.
 constexpr const char* kSystemPrompt = "You are Octopus, an AI agent for UNIX.";
 
 constexpr const char* kDeveloperPrompt =
@@ -17,10 +15,8 @@ constexpr const char* kDeveloperPrompt =
 constexpr int kAskRepeatLastN = 64;
 constexpr float kAskRepeatPenalty = 1.05F;
 
-/**
- * Only transport/backend failures should make the CLI fail. Other finish
- * reasons, including loop detection, can still produce user-visible text.
- */
+// Only transport/backend failures should make the CLI fail. Other finish
+// reasons, including loop detection, can still produce user-visible text.
 bool completionFailed(const CompletionResult& completion) {
   return completion.finish_reason == FinishReason::BackendError;
 }
@@ -42,19 +38,15 @@ CompletionRequest makeConversationRequest(const CliOptions& options,
                                           const ModelProfile& profile) {
   CompletionRequest request;
   request.model_profile = profile;
-  /**
-   * Keep the conversation structured as long as possible. Rendering to one
-   * model-specific prompt string happens later in the backend.
-   */
+  // Keep the conversation structured as long as possible. Rendering to one
+  // model-specific prompt string happens later in the backend.
   request.conversation.messages.push_back({Role::System, kSystemPrompt});
   request.conversation.messages.push_back({Role::Developer, kDeveloperPrompt});
   request.conversation.messages.insert(request.conversation.messages.end(),
                                        conversation.messages.begin(),
                                        conversation.messages.end());
-  /**
-   * CLI requests are deterministic and conservative for now: useful for
-   * testing, reproducibility, and reducing small-model repetition.
-   */
+  // CLI requests are deterministic and conservative for now: useful for
+  // testing, reproducibility, and reducing small-model repetition.
   request.generation.max_tokens = options.n_predict;
   request.generation.sampler_profile = SamplerProfile::Deterministic;
   request.generation.quiet = options.quiet;
@@ -76,10 +68,8 @@ CompletionRequest makeAskRequest(const CliOptions& options,
 AskRunResult runOneShotAsk(const CliOptions& options, LlmBackend& backend,
                            std::ostream& out, std::ostream& err) {
   AskRunResult result;
-  /**
-   * The runner depends only on LlmBackend, so tests can exercise CLI behavior
-   * with a fake backend instead of loading a real GGUF model.
-   */
+  // The runner depends only on LlmBackend, so tests can exercise CLI behavior
+  // with a fake backend instead of loading a real GGUF model.
   result.completion = backend.complete(makeAskRequest(options));
 
   if (completionFailed(result.completion)) {

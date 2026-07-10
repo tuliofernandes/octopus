@@ -33,10 +33,8 @@ int main(int argc, char** argv) {
   }
 
   const auto& options = cli.options;
-  /**
-   * main wires CLI to the harness: parse user intent, build one concrete
-   * backend, then let mode runners handle request construction and output.
-   */
+  // main wires CLI to the harness: parse user intent, build one concrete
+  // backend, then let mode runners handle request construction and output.
   octopus::LlamaCppBackend backend(
       {options.model_path, options.n_gpu_layers, options.quiet});
   if (options.mode == octopus::CliMode::Interactive) {

@@ -8,10 +8,8 @@
 namespace octopus {
 namespace {
 
-/**
- * Keep loop detection bounded and conservative. The detector should catch
- * obvious runaway text without becoming a second model evaluator.
- */
+// Keep loop detection bounded and conservative. The detector should catch
+// obvious runaway text without becoming a second model evaluator.
 constexpr std::size_t kLoopRecentWindow = 1024;
 constexpr std::size_t kLoopRepeatCount = 4;
 constexpr std::size_t kMaxRepeatedLineBytes = 80;
@@ -49,10 +47,8 @@ std::size_t matchingStopIndex(const std::string& text,
                               const std::vector<std::string>& stop_strings) {
   std::size_t match = std::numeric_limits<std::size_t>::max();
 
-  /**
-   * Prefer the longest matching suffix so a short stop cannot steal a more
-   * specific model delimiter that ends at the same position.
-   */
+  // Prefer the longest matching suffix so a short stop cannot steal a more
+  // specific model delimiter that ends at the same position.
   for (std::size_t index = 0; index < stop_strings.size(); ++index) {
     const auto& stop = stop_strings[index];
     if (text.size() < stop.size()) {
@@ -97,10 +93,8 @@ StopDetector::StopDetector(std::vector<std::string> stop_strings)
     : stop_strings_(normalizeStopStrings(std::move(stop_strings))) {}
 
 bool StopDetector::append(std::string_view chunk) {
-  /**
-   * Token pieces can split a textual stop marker, so matching must happen on
-   * accumulated output rather than only on the newest chunk.
-   */
+  // Token pieces can split a textual stop marker, so matching must happen on
+  // accumulated output rather than only on the newest chunk.
   text_.append(chunk.data(), chunk.size());
 
   const auto match = matchingStopIndex(text_, stop_strings_);
@@ -115,10 +109,8 @@ bool StopDetector::append(std::string_view chunk) {
 }
 
 void StopDetector::truncate(std::size_t size) {
-  /**
-   * LoopDetector reports the safe visible prefix; StopDetector owns the final
-   * accumulated text, so truncation happens here.
-   */
+  // LoopDetector reports the safe visible prefix; StopDetector owns the final
+  // accumulated text, so truncation happens here.
   if (size < text_.size()) {
     text_.erase(size);
   }
@@ -163,10 +155,8 @@ std::string StopSafeTextBuffer::flush(std::string_view final_text) {
 }
 
 bool LoopDetector::append(std::string_view chunk) {
-  /**
-   * generated_size_ tracks the full output length even though recent_text_ is a
-   * bounded window. That lets us trim the final answer at the right offset.
-   */
+  // generated_size_ tracks the full output length even though recent_text_ is a
+  // bounded window. That lets us trim the final answer at the right offset.
   generated_size_ += chunk.size();
   if (detected_) {
     return true;
@@ -236,10 +226,8 @@ bool LoopDetector::detectRepeatedWindows() {
         recent_text_.size() - (unit_size * kLoopRepeatCount);
     const auto unit =
         std::string_view(recent_text_).substr(repeated_start, unit_size);
-    /**
-     * Require some language-like shape so runs of punctuation or whitespace do
-     * not accidentally count as model loops.
-     */
+    // Require some language-like shape so runs of punctuation or whitespace do
+    // not accidentally count as model loops.
     if (!hasNonSpace(unit) || !hasSpace(unit)) {
       continue;
     }
@@ -253,10 +241,8 @@ bool LoopDetector::detectRepeatedWindows() {
 
 void LoopDetector::recordDetection(std::size_t unit_size) {
   detected_ = true;
-  /**
-   * Keep the first copy and trim the repeated copies. This salvages the useful
-   * answer prefix instead of returning an obvious runaway loop.
-   */
+  // Keep the first copy and trim the repeated copies. This salvages the useful
+  // answer prefix instead of returning an obvious runaway loop.
   trim_size_ = generated_size_ - (unit_size * (kLoopRepeatCount - 1));
 }
 
