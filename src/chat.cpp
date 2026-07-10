@@ -11,12 +11,11 @@ namespace {
 
 constexpr const char* kAssistantPrompt = "octopus> ";
 
-bool completion_failed(const CompletionResult& completion) {
+bool completionFailed(const CompletionResult& completion) {
   return completion.finish_reason == FinishReason::BackendError;
 }
 
-void report_backend_error(const CompletionResult& completion,
-                          std::ostream& err) {
+void reportBackendError(const CompletionResult& completion, std::ostream& err) {
   err << (completion.error.empty() ? "LLM backend error" : completion.error)
       << '\n';
 }
@@ -30,26 +29,26 @@ class ChatOutputSink final : public CompletionSink {
       return;
     }
 
-    ensure_started();
+    ensureStarted();
     out_ << chunk.text;
     out_.flush();
   }
 
   bool started() const noexcept { return started_; }
 
-  void finish_success() {
-    ensure_started();
+  void finishSuccess() {
+    ensureStarted();
     out_ << '\n';
   }
 
-  void finish_error() {
+  void finishError() {
     if (started_) {
       out_ << '\n';
     }
   }
 
  private:
-  void ensure_started() {
+  void ensureStarted() {
     if (!started_) {
       out_ << kAssistantPrompt;
       started_ = true;
@@ -86,14 +85,14 @@ ChatRunResult runCliChat(const CliOptions& options, LlmBackend& backend,
     result.last_completion = backend.completeStreaming(
         makeConversationRequest(options, conversation), sink);
 
-    if (completion_failed(result.last_completion)) {
+    if (completionFailed(result.last_completion)) {
       result.exit_code = 1;
-      sink.finish_error();
-      report_backend_error(result.last_completion, err);
+      sink.finishError();
+      reportBackendError(result.last_completion, err);
       return result;
     }
 
-    sink.finish_success();
+    sink.finishSuccess();
     conversation.messages.push_back(
         {Role::Assistant, result.last_completion.text});
   }

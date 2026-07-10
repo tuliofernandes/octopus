@@ -93,8 +93,8 @@ TEST_CASE("Gemma instruction profile renders current prompt contract",
         "User request:\n"
         "Say hello in one short sentence.<end_of_turn>\n"
         "<start_of_turn>model\n");
-  REQUIRE(rendered.stopStrings.size() == 1);
-  CHECK(rendered.stopStrings[0] == "<end_of_turn>");
+  REQUIRE(rendered.stop_strings.size() == 1);
+  CHECK(rendered.stop_strings[0] == "<end_of_turn>");
 }
 
 TEST_CASE("Gemma renderer folds policy into one-shot user turn", "[prompt]") {
@@ -120,8 +120,8 @@ TEST_CASE("Gemma renderer folds policy into one-shot user turn", "[prompt]") {
         std::string::npos);
   CHECK(rendered.text.find("<end_of_turn>\n<start_of_turn>model\n") !=
         std::string::npos);
-  REQUIRE(rendered.stopStrings.size() == 1);
-  CHECK(rendered.stopStrings[0] == "<end_of_turn>");
+  REQUIRE(rendered.stop_strings.size() == 1);
+  CHECK(rendered.stop_strings[0] == "<end_of_turn>");
 }
 
 TEST_CASE("Gemma renderer preserves ordered user and assistant turns",

@@ -18,13 +18,13 @@ constexpr std::size_t kMaxRepeatedLineBytes = 80;
 constexpr std::size_t kMinRepeatedWindowBytes = 8;
 constexpr std::size_t kMaxRepeatedWindowBytes = 96;
 
-std::vector<std::string> normalize_stop_strings(
-    std::vector<std::string> stopStrings) {
+std::vector<std::string> normalizeStopStrings(
+    std::vector<std::string> stop_strings) {
   std::vector<std::string> normalized;
-  normalized.reserve(stopStrings.size());
+  normalized.reserve(stop_strings.size());
 
   // Empty stops would match everything, and duplicates only add extra checks.
-  for (auto& stop : stopStrings) {
+  for (auto& stop : stop_strings) {
     if (stop.empty()) {
       continue;
     }
@@ -37,7 +37,7 @@ std::vector<std::string> normalize_stop_strings(
   return normalized;
 }
 
-std::size_t max_size(const std::vector<std::string>& values) {
+std::size_t maxSize(const std::vector<std::string>& values) {
   std::size_t result = 0;
   for (const auto& value : values) {
     result = std::max(result, value.size());
@@ -45,16 +45,16 @@ std::size_t max_size(const std::vector<std::string>& values) {
   return result;
 }
 
-std::size_t matching_stop_index(const std::string& text,
-                                const std::vector<std::string>& stopStrings) {
+std::size_t matchingStopIndex(const std::string& text,
+                              const std::vector<std::string>& stop_strings) {
   std::size_t match = std::numeric_limits<std::size_t>::max();
 
   /**
    * Prefer the longest matching suffix so a short stop cannot steal a more
    * specific model delimiter that ends at the same position.
    */
-  for (std::size_t index = 0; index < stopStrings.size(); ++index) {
-    const auto& stop = stopStrings[index];
+  for (std::size_t index = 0; index < stop_strings.size(); ++index) {
+    const auto& stop = stop_strings[index];
     if (text.size() < stop.size()) {
       continue;
     }
@@ -62,7 +62,7 @@ std::size_t matching_stop_index(const std::string& text,
       continue;
     }
     if (match == std::numeric_limits<std::size_t>::max() ||
-        stop.size() > stopStrings[match].size()) {
+        stop.size() > stop_strings[match].size()) {
       match = index;
     }
   }
@@ -70,15 +70,15 @@ std::size_t matching_stop_index(const std::string& text,
   return match;
 }
 
-bool has_non_space(std::string_view value) {
+bool hasNonSpace(std::string_view value) {
   return value.find_first_not_of(" \t\r\n") != std::string_view::npos;
 }
 
-bool has_space(std::string_view value) {
+bool hasSpace(std::string_view value) {
   return value.find_first_of(" \t\r\n") != std::string_view::npos;
 }
 
-bool all_equal_windows(std::string_view text, std::size_t unit_size) {
+bool allEqualWindows(std::string_view text, std::size_t unit_size) {
   const auto start = text.size() - (unit_size * kLoopRepeatCount);
   const auto first = text.substr(start, unit_size);
 
@@ -93,8 +93,8 @@ bool all_equal_windows(std::string_view text, std::size_t unit_size) {
 
 }  // namespace
 
-StopDetector::StopDetector(std::vector<std::string> stopStrings)
-    : stop_strings_(normalize_stop_strings(std::move(stopStrings))) {}
+StopDetector::StopDetector(std::vector<std::string> stop_strings)
+    : stop_strings_(normalizeStopStrings(std::move(stop_strings))) {}
 
 bool StopDetector::append(std::string_view chunk) {
   /**
@@ -103,7 +103,7 @@ bool StopDetector::append(std::string_view chunk) {
    */
   text_.append(chunk.data(), chunk.size());
 
-  const auto match = matching_stop_index(text_, stop_strings_);
+  const auto match = matchingStopIndex(text_, stop_strings_);
   if (match == std::numeric_limits<std::size_t>::max()) {
     return false;
   }
@@ -130,9 +130,8 @@ const std::vector<std::string>& StopDetector::stopStrings() const noexcept {
   return stop_strings_;
 }
 
-StopSafeTextBuffer::StopSafeTextBuffer(std::vector<std::string> stopStrings)
-    : max_stop_size_(max_size(normalize_stop_strings(std::move(stopStrings)))) {
-}
+StopSafeTextBuffer::StopSafeTextBuffer(std::vector<std::string> stop_strings)
+    : max_stop_size_(maxSize(normalizeStopStrings(std::move(stop_strings)))) {}
 
 std::string StopSafeTextBuffer::append(std::string_view chunk) {
   if (chunk.empty()) {
@@ -208,7 +207,7 @@ bool LoopDetector::detectRepeatedLines() {
   }
 
   if (lines.size() != kLoopRepeatCount ||
-      lines[0].size() > kMaxRepeatedLineBytes || !has_non_space(lines[0])) {
+      lines[0].size() > kMaxRepeatedLineBytes || !hasNonSpace(lines[0])) {
     return false;
   }
 
@@ -229,7 +228,7 @@ bool LoopDetector::detectRepeatedWindows() {
 
   for (std::size_t unit_size = kMinRepeatedWindowBytes;
        unit_size <= max_unit_size; ++unit_size) {
-    if (!all_equal_windows(recent_text_, unit_size)) {
+    if (!allEqualWindows(recent_text_, unit_size)) {
       continue;
     }
 
@@ -241,7 +240,7 @@ bool LoopDetector::detectRepeatedWindows() {
      * Require some language-like shape so runs of punctuation or whitespace do
      * not accidentally count as model loops.
      */
-    if (!has_non_space(unit) || !has_space(unit)) {
+    if (!hasNonSpace(unit) || !hasSpace(unit)) {
       continue;
     }
 

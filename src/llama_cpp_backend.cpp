@@ -29,7 +29,7 @@ struct BackendPromptResult {
   bool ok = true;
 };
 
-CompletionResult backend_error(std::string message) {
+CompletionResult backendError(std::string message) {
   CompletionResult result;
   result.finish_reason = FinishReason::BackendError;
   result.error = std::move(message);
@@ -40,20 +40,20 @@ CompletionResult backend_error(std::string message) {
  * llama.cpp APIs use int32_t sizes in several places. Check before casting so a
  * huge prompt cannot wrap into a dangerous native call.
  */
-bool fits_int32(std::size_t value) {
+bool fitsInt32(std::size_t value) {
   return value <= static_cast<std::size_t>(std::numeric_limits<int32_t>::max());
 }
 
-bool fits_uint32(std::size_t value) {
+bool fitsUint32(std::size_t value) {
   return value <=
          static_cast<std::size_t>(std::numeric_limits<uint32_t>::max());
 }
 
-CompletionResult tokenize_prompt(const llama_vocab* vocab,
-                                 const std::string& prompt,
-                                 std::vector<llama_token>& tokens) {
-  if (!fits_int32(prompt.size())) {
-    return backend_error("prompt is too large to tokenize");
+CompletionResult tokenizePrompt(const llama_vocab* vocab,
+                                const std::string& prompt,
+                                std::vector<llama_token>& tokens) {
+  if (!fitsInt32(prompt.size())) {
+    return backendError("prompt is too large to tokenize");
   }
 
   const auto prompt_size = static_cast<int32_t>(prompt.size());
@@ -64,12 +64,12 @@ CompletionResult tokenize_prompt(const llama_vocab* vocab,
   const int32_t sized = llama_tokenize(vocab, prompt.c_str(), prompt_size,
                                        nullptr, 0, true, true);
   if (sized == std::numeric_limits<int32_t>::min() || sized >= 0) {
-    return backend_error("failed to size prompt tokens");
+    return backendError("failed to size prompt tokens");
   }
 
   const int32_t token_count = -sized;
   if (token_count <= 0) {
-    return backend_error("prompt produced no tokens");
+    return backendError("prompt produced no tokens");
   }
 
   tokens.resize(static_cast<std::size_t>(token_count));
@@ -80,15 +80,15 @@ CompletionResult tokenize_prompt(const llama_vocab* vocab,
   const int32_t actual = llama_tokenize(vocab, prompt.c_str(), prompt_size,
                                         tokens.data(), token_count, true, true);
   if (actual != token_count) {
-    return backend_error("failed to tokenize prompt");
+    return backendError("failed to tokenize prompt");
   }
 
   CompletionResult ok;
   return ok;
 }
 
-CompletionResult token_to_piece(const llama_vocab* vocab, llama_token token,
-                                std::string& piece) {
+CompletionResult tokenToPiece(const llama_vocab* vocab, llama_token token,
+                              std::string& piece) {
   std::vector<char> buffer(128);
   /**
    * Token pieces are byte strings, not necessarily whole words. Stop and loop
@@ -100,8 +100,8 @@ CompletionResult token_to_piece(const llama_vocab* vocab, llama_token token,
 
   if (written < 0) {
     const auto needed = static_cast<std::size_t>(-written);
-    if (!fits_int32(needed) || needed == 0) {
-      return backend_error("failed to size token piece");
+    if (!fitsInt32(needed) || needed == 0) {
+      return backendError("failed to size token piece");
     }
 
     buffer.resize(needed);
@@ -112,7 +112,7 @@ CompletionResult token_to_piece(const llama_vocab* vocab, llama_token token,
 
   if (written < 0 || static_cast<std::size_t>(written) >
                          static_cast<std::size_t>(buffer.size())) {
-    return backend_error("failed to convert token to piece");
+    return backendError("failed to convert token to piece");
   }
 
   piece.assign(buffer.data(), static_cast<std::size_t>(written));
@@ -124,7 +124,7 @@ bool failed(const CompletionResult& result) {
   return result.finish_reason == FinishReason::BackendError;
 }
 
-void emit_text(CompletionSink* sink, std::string text) {
+void emitText(CompletionSink* sink, std::string text) {
   if (sink == nullptr || text.empty()) {
     return;
   }
@@ -132,7 +132,7 @@ void emit_text(CompletionSink* sink, std::string text) {
   sink->onText({std::move(text)});
 }
 
-bool has_gemma_fallback(const ModelProfile& profile) {
+bool hasGemmaFallback(const ModelProfile& profile) {
   return profile.fallback_renderer == PromptFallback::GemmaInstruction;
 }
 
@@ -147,13 +147,13 @@ bool contains(const std::string& text, const std::string& needle) {
   return text.find(needle) != std::string::npos;
 }
 
-bool looks_like_integrated_amd_gpu(const std::string& description) {
+bool looksLikeIntegratedAmdGpu(const std::string& description) {
   const auto lower = lowercase(description);
   return contains(lower, "ryzen") || contains(lower, "integrated") ||
          contains(lower, "radeon graphics");
 }
 
-std::vector<ggml_backend_dev_t> select_single_gpu_device() {
+std::vector<ggml_backend_dev_t> selectSingleGpuDevice() {
   /**
    * On the local AMD host, ROCm can expose both an integrated GPU and the
    * discrete Radeon. Select one discrete-looking GPU before model load so
@@ -169,7 +169,7 @@ std::vector<ggml_backend_dev_t> select_single_gpu_device() {
     }
 
     const std::string description = ggml_backend_dev_description(device);
-    if (looks_like_integrated_amd_gpu(description)) {
+    if (looksLikeIntegratedAmdGpu(description)) {
       continue;
     }
 
@@ -198,31 +198,31 @@ std::vector<ggml_backend_dev_t> select_single_gpu_device() {
   return {selected, nullptr};
 }
 
-BackendPromptResult prompt_error(std::string message) {
+BackendPromptResult promptError(std::string message) {
   BackendPromptResult result;
   result.ok = false;
-  result.error = backend_error(std::move(message));
+  result.error = backendError(std::move(message));
   return result;
 }
 
-BackendPromptResult manual_prompt(const CompletionRequest& request) {
+BackendPromptResult manualPrompt(const CompletionRequest& request) {
   BackendPromptResult result;
   result.rendered = renderPrompt(request.conversation, request.model_profile);
   return result;
 }
 
-BackendPromptResult apply_model_chat_template(
-    const llama_model* model, const CompletionRequest& request) {
+BackendPromptResult applyModelChatTemplate(const llama_model* model,
+                                           const CompletionRequest& request) {
   const char* chat_template = llama_model_chat_template(model, nullptr);
   if (chat_template == nullptr) {
     /**
      * Metadata templates are preferred, but a known manual fallback keeps the
      * current Gemma path usable with older or sparse GGUF files.
      */
-    if (has_gemma_fallback(request.model_profile)) {
-      return manual_prompt(request);
+    if (hasGemmaFallback(request.model_profile)) {
+      return manualPrompt(request);
     }
-    return prompt_error(
+    return promptError(
         "model chat template metadata is unavailable and no prompt fallback is "
         "configured");
   }
@@ -242,10 +242,10 @@ BackendPromptResult apply_model_chat_template(
   int32_t formatted_size = llama_chat_apply_template(
       chat_template, chat.data(), chat.size(), true, nullptr, 0);
   if (formatted_size < 0) {
-    if (has_gemma_fallback(request.model_profile)) {
-      return manual_prompt(request);
+    if (hasGemmaFallback(request.model_profile)) {
+      return manualPrompt(request);
     }
-    return prompt_error("model chat template is not supported by llama.cpp");
+    return promptError("model chat template is not supported by llama.cpp");
   }
 
   std::vector<char> buffer(static_cast<std::size_t>(formatted_size));
@@ -258,15 +258,15 @@ BackendPromptResult apply_model_chat_template(
                                 buffer.empty() ? nullptr : buffer.data(),
                                 static_cast<int32_t>(buffer.size()));
   if (actual < 0) {
-    if (has_gemma_fallback(request.model_profile)) {
-      return manual_prompt(request);
+    if (hasGemmaFallback(request.model_profile)) {
+      return manualPrompt(request);
     }
-    return prompt_error("failed to apply model chat template");
+    return promptError("failed to apply model chat template");
   }
 
   if (static_cast<std::size_t>(actual) > buffer.size()) {
-    if (!fits_int32(static_cast<std::size_t>(actual))) {
-      return prompt_error("rendered chat template is too large");
+    if (!fitsInt32(static_cast<std::size_t>(actual))) {
+      return promptError("rendered chat template is too large");
     }
     buffer.resize(static_cast<std::size_t>(actual));
     actual =
@@ -276,10 +276,10 @@ BackendPromptResult apply_model_chat_template(
   }
 
   if (actual < 0 || static_cast<std::size_t>(actual) > buffer.size()) {
-    if (has_gemma_fallback(request.model_profile)) {
-      return manual_prompt(request);
+    if (hasGemmaFallback(request.model_profile)) {
+      return manualPrompt(request);
     }
-    return prompt_error("failed to apply model chat template");
+    return promptError("failed to apply model chat template");
   }
 
   BackendPromptResult result;
@@ -287,24 +287,24 @@ BackendPromptResult apply_model_chat_template(
     result.rendered.text.assign(buffer.data(),
                                 static_cast<std::size_t>(actual));
   }
-  result.rendered.stopStrings = request.model_profile.stopStrings;
+  result.rendered.stop_strings = request.model_profile.stop_strings;
   return result;
 }
 
-BackendPromptResult render_backend_prompt(const llama_model* model,
-                                          const CompletionRequest& request) {
+BackendPromptResult renderBackendPrompt(const llama_model* model,
+                                        const CompletionRequest& request) {
   /**
    * Metadata rendering needs the loaded llama_model, so final renderer
    * selection lives in this backend rather than pure prompt.cpp.
    */
   switch (request.model_profile.prompt_renderer) {
     case PromptRenderer::GemmaInstruction:
-      return manual_prompt(request);
+      return manualPrompt(request);
     case PromptRenderer::LlamaChatTemplate:
-      return apply_model_chat_template(model, request);
+      return applyModelChatTemplate(model, request);
   }
 
-  return manual_prompt(request);
+  return manualPrompt(request);
 }
 
 }  // namespace
@@ -324,7 +324,7 @@ struct LlamaCppBackend::Impl {
      * Device selection is done before model load because llama.cpp decides
      * tensor placement while loading the GGUF.
      */
-    selected_devices = select_single_gpu_device();
+    selected_devices = selectSingleGpuDevice();
     if (!selected_devices.empty()) {
       /**
        * Single-device, no-split offload keeps local HIP behavior predictable.
@@ -340,30 +340,30 @@ struct LlamaCppBackend::Impl {
   }
 
   CompletionResult complete(const CompletionRequest& request) {
-    return complete_impl(request, nullptr);
+    return completeImpl(request, nullptr);
   }
 
   CompletionResult completeStreaming(const CompletionRequest& request,
                                      CompletionSink& sink) {
-    return complete_impl(request, &sink);
+    return completeImpl(request, &sink);
   }
 
-  CompletionResult complete_impl(const CompletionRequest& request,
-                                 CompletionSink* sink) {
+  CompletionResult completeImpl(const CompletionRequest& request,
+                                CompletionSink* sink) {
     /**
      * The adapter validates generic harness policy before translating it to
      * llama.cpp objects.
      */
     const auto validation = validateGenerationOptions(request.generation);
     if (!validation.ok) {
-      return backend_error(validation.error);
+      return backendError(validation.error);
     }
 
     if (model == nullptr) {
-      return backend_error("unable to load model: " + options.model_path);
+      return backendError("unable to load model: " + options.model_path);
     }
 
-    auto prompt_result = render_backend_prompt(model.get(), request);
+    auto prompt_result = renderBackendPrompt(model.get(), request);
     if (!prompt_result.ok) {
       return prompt_result.error;
     }
@@ -372,21 +372,21 @@ struct LlamaCppBackend::Impl {
      * Prompt-format stops and caller-requested stops are both output
      * boundaries, so they are enforced by the same detector.
      */
-    std::vector<std::string> stopStrings = rendered.stopStrings;
-    stopStrings.insert(stopStrings.end(),
-                       request.generation.stopStrings.begin(),
-                       request.generation.stopStrings.end());
-    StopDetector stop_detector(std::move(stopStrings));
+    std::vector<std::string> stop_strings = rendered.stop_strings;
+    stop_strings.insert(stop_strings.end(),
+                        request.generation.stop_strings.begin(),
+                        request.generation.stop_strings.end());
+    StopDetector stop_detector(std::move(stop_strings));
     LoopDetector loop_detector;
     StopSafeTextBuffer text_buffer(stop_detector.stopStrings());
 
     const llama_vocab* vocab = llama_model_get_vocab(model.get());
     if (vocab == nullptr) {
-      return backend_error("model does not expose a vocabulary");
+      return backendError("model does not expose a vocabulary");
     }
 
     std::vector<llama_token> prompt_tokens;
-    auto tokenized = tokenize_prompt(vocab, rendered.text, prompt_tokens);
+    auto tokenized = tokenizePrompt(vocab, rendered.text, prompt_tokens);
     if (failed(tokenized)) {
       return tokenized;
     }
@@ -397,8 +397,8 @@ struct LlamaCppBackend::Impl {
     /**
      * Context must fit the prompt plus the requested completion budget.
      */
-    if (!fits_uint32(context_tokens) || !fits_int32(prompt_tokens.size())) {
-      return backend_error("requested context is too large");
+    if (!fitsUint32(context_tokens) || !fitsInt32(prompt_tokens.size())) {
+      return backendError("requested context is too large");
     }
 
     llama_context_params ctx_params = llama_context_default_params();
@@ -413,7 +413,7 @@ struct LlamaCppBackend::Impl {
     std::unique_ptr<llama_context, decltype(&llama_free)> ctx(
         llama_init_from_model(model.get(), ctx_params), llama_free);
     if (ctx == nullptr) {
-      return backend_error("failed to create llama context");
+      return backendError("failed to create llama context");
     }
 
     auto sampler_params = llama_sampler_chain_default_params();
@@ -421,7 +421,7 @@ struct LlamaCppBackend::Impl {
     std::unique_ptr<llama_sampler, decltype(&llama_sampler_free)> sampler(
         llama_sampler_chain_init(sampler_params), llama_sampler_free);
     if (sampler == nullptr) {
-      return backend_error("failed to create llama sampler");
+      return backendError("failed to create llama sampler");
     }
     if (repeatPenaltyEnabled(request.generation)) {
       /**
@@ -435,14 +435,14 @@ struct LlamaCppBackend::Impl {
                                        request.generation.presence_penalty),
           llama_sampler_free);
       if (penalties == nullptr) {
-        return backend_error("failed to create penalties sampler");
+        return backendError("failed to create penalties sampler");
       }
       llama_sampler_chain_add(sampler.get(), penalties.release());
     }
     std::unique_ptr<llama_sampler, decltype(&llama_sampler_free)> greedy(
         llama_sampler_init_greedy(), llama_sampler_free);
     if (greedy == nullptr) {
-      return backend_error("failed to create greedy sampler");
+      return backendError("failed to create greedy sampler");
     }
     llama_sampler_chain_add(sampler.get(), greedy.release());
 
@@ -462,7 +462,7 @@ struct LlamaCppBackend::Impl {
        * the single token sampled in the previous loop.
        */
       if (llama_decode(ctx.get(), batch)) {
-        return backend_error("failed to evaluate llama batch");
+        return backendError("failed to evaluate llama batch");
       }
 
       sampled_token = llama_sampler_sample(sampler.get(), ctx.get(), -1);
@@ -477,7 +477,7 @@ struct LlamaCppBackend::Impl {
       }
 
       std::string piece;
-      auto converted = token_to_piece(vocab, sampled_token, piece);
+      auto converted = tokenToPiece(vocab, sampled_token, piece);
       if (failed(converted)) {
         return converted;
       }
@@ -490,7 +490,7 @@ struct LlamaCppBackend::Impl {
        */
       if (stop_detector.append(piece)) {
         result.finish_reason = FinishReason::Stop;
-        emit_text(sink, text_buffer.flush(stop_detector.text()));
+        emitText(sink, text_buffer.flush(stop_detector.text()));
         break;
       }
 
@@ -501,11 +501,11 @@ struct LlamaCppBackend::Impl {
          */
         stop_detector.truncate(loop_detector.trimSize());
         result.finish_reason = FinishReason::LoopDetected;
-        emit_text(sink, text_buffer.flush(stop_detector.text()));
+        emitText(sink, text_buffer.flush(stop_detector.text()));
         break;
       }
 
-      emit_text(sink, text_buffer.append(piece));
+      emitText(sink, text_buffer.append(piece));
 
       /**
        * Feed the sampled token back into the next decode step. This is the raw
@@ -515,7 +515,7 @@ struct LlamaCppBackend::Impl {
     }
 
     result.text = stop_detector.text();
-    emit_text(sink, text_buffer.flush(result.text));
+    emitText(sink, text_buffer.flush(result.text));
     return result;
   }
 

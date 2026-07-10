@@ -32,7 +32,7 @@ struct ChatTemplateMessages {
  */
 struct RenderedPrompt {
   std::string text;
-  std::vector<std::string> stopStrings;
+  std::vector<std::string> stop_strings;
 };
 
 /**

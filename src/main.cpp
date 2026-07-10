@@ -9,7 +9,7 @@
 
 namespace {
 
-std::vector<std::string> argv_to_strings(int argc, char** argv) {
+std::vector<std::string> argvToStrings(int argc, char** argv) {
   std::vector<std::string> arguments;
   arguments.reserve(static_cast<std::size_t>(argc));
   for (int index = 0; index < argc; ++index) {
@@ -21,7 +21,7 @@ std::vector<std::string> argv_to_strings(int argc, char** argv) {
 }  // namespace
 
 int main(int argc, char** argv) {
-  const auto cli = octopus::parseCli(argv_to_strings(argc, argv));
+  const auto cli = octopus::parseCli(argvToStrings(argc, argv));
   if (cli.ok && !cli.help.empty()) {
     std::cout << cli.help;
   }

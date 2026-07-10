@@ -13,7 +13,7 @@ constexpr const char* kGemmaEndOfTurn = "<end_of_turn>";
  * Manual Gemma rendering uses Gemma's training-time role names. "Assistant" is
  * called "model" in that syntax, which is why the mapping is not symmetric.
  */
-const char* role_name(Role role) {
+const char* roleName(Role role) {
   switch (role) {
     case Role::System:
       return "system";
@@ -33,7 +33,7 @@ const char* role_name(Role role) {
  * Octopus policy roles to "system" and let the selected model template decide
  * how that role should appear in the final prompt.
  */
-const char* chat_template_role_name(Role role) {
+const char* chatTemplateRoleName(Role role) {
   switch (role) {
     case Role::System:
     case Role::Developer:
@@ -51,9 +51,9 @@ const char* chat_template_role_name(Role role) {
  * A Gemma turn is plain text with special delimiters. This is the final shape
  * the raw model was trained to continue.
  */
-void append_turn(std::ostringstream& output, Role role,
-                 const std::string& content) {
-  output << "<start_of_turn>" << role_name(role) << '\n'
+void appendTurn(std::ostringstream& output, Role role,
+                const std::string& content) {
+  output << "<start_of_turn>" << roleName(role) << '\n'
          << content << kGemmaEndOfTurn << '\n';
 }
 
@@ -61,7 +61,7 @@ void append_turn(std::ostringstream& output, Role role,
  * Some models only understand user/assistant turns. Folding preserves Octopus
  * system/developer policy by embedding it into the next user message.
  */
-std::string policy_prelude(const std::vector<Message>& policy_messages) {
+std::string policyPrelude(const std::vector<Message>& policy_messages) {
   if (policy_messages.empty()) {
     return {};
   }
@@ -69,8 +69,7 @@ std::string policy_prelude(const std::vector<Message>& policy_messages) {
   std::ostringstream output;
   output << "Octopus operating instructions:\n";
   for (const auto& message : policy_messages) {
-    output << '[' << role_name(message.role) << "]\n"
-           << message.content << '\n';
+    output << '[' << roleName(message.role) << "]\n" << message.content << '\n';
   }
   output << "\nUser request:\n";
   return output.str();
@@ -86,7 +85,7 @@ ModelProfile ModelProfile::gemmaInstruction() {
    */
   profile.prompt_renderer = PromptRenderer::LlamaChatTemplate;
   profile.fallback_renderer = PromptFallback::GemmaInstruction;
-  profile.stopStrings = {kGemmaEndOfTurn};
+  profile.stop_strings = {kGemmaEndOfTurn};
   profile.fold_policy_messages = true;
   return profile;
 }
@@ -123,9 +122,9 @@ ChatTemplateMessages makeChatTemplateMessages(const Conversation& conversation,
       continue;
     }
 
-    result.role_storage.emplace_back(chat_template_role_name(message.role));
+    result.role_storage.emplace_back(chatTemplateRoleName(message.role));
     if (profile.fold_policy_messages && message.role == Role::User) {
-      result.content_storage.push_back(policy_prelude(pending_policy) +
+      result.content_storage.push_back(policyPrelude(pending_policy) +
                                        message.content);
       pending_policy.clear();
     } else {
@@ -155,20 +154,20 @@ RenderedPrompt renderPrompt(const Conversation& conversation,
   switch (profile.prompt_renderer) {
     case PromptRenderer::GemmaInstruction: {
       auto rendered = renderGemmaPrompt(conversation);
-      rendered.stopStrings = profile.stopStrings;
+      rendered.stop_strings = profile.stop_strings;
       return rendered;
     }
     case PromptRenderer::LlamaChatTemplate:
       if (profile.fallback_renderer == PromptFallback::GemmaInstruction) {
         auto rendered = renderGemmaPrompt(conversation);
-        rendered.stopStrings = profile.stopStrings;
+        rendered.stop_strings = profile.stop_strings;
         return rendered;
       }
-      return {{}, profile.stopStrings};
+      return {{}, profile.stop_strings};
   }
 
   auto rendered = renderGemmaPrompt(conversation);
-  rendered.stopStrings = profile.stopStrings;
+  rendered.stop_strings = profile.stop_strings;
   return rendered;
 }
 
@@ -187,13 +186,13 @@ RenderedPrompt renderGemmaPrompt(const Conversation& conversation) {
     }
 
     if (message.role == Role::User) {
-      append_turn(output, Role::User,
-                  policy_prelude(pending_policy) + message.content);
+      appendTurn(output, Role::User,
+                 policyPrelude(pending_policy) + message.content);
       pending_policy.clear();
       continue;
     }
 
-    append_turn(output, message.role, message.content);
+    appendTurn(output, message.role, message.content);
   }
 
   /**

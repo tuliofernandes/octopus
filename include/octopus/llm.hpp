@@ -60,7 +60,7 @@ enum class PromptFallback {
 struct ModelProfile {
   PromptRenderer prompt_renderer = PromptRenderer::GemmaInstruction;
   PromptFallback fallback_renderer = PromptFallback::None;
-  std::vector<std::string> stopStrings;
+  std::vector<std::string> stop_strings;
   /**
    * Some models do not support system/developer roles directly. Folding keeps
    * those instructions visible by placing them inside the next user turn.
@@ -82,7 +82,7 @@ struct GenerationOptions {
    * Textual stops are chatbot boundaries: they prevent internal turn markers
    * from leaking into the user's visible answer.
    */
-  std::vector<std::string> stopStrings;
+  std::vector<std::string> stop_strings;
   /**
    * Repeat penalties are a light guardrail against the raw model falling into
    * repetitive next-token loops.

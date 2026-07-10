@@ -13,7 +13,7 @@ namespace octopus {
  */
 class StopDetector {
  public:
-  explicit StopDetector(std::vector<std::string> stopStrings);
+  explicit StopDetector(std::vector<std::string> stop_strings);
 
   bool append(std::string_view chunk);
   void truncate(std::size_t size);
@@ -33,7 +33,7 @@ class StopDetector {
  */
 class StopSafeTextBuffer {
  public:
-  explicit StopSafeTextBuffer(std::vector<std::string> stopStrings);
+  explicit StopSafeTextBuffer(std::vector<std::string> stop_strings);
 
   std::string append(std::string_view chunk);
   std::string flush(std::string_view final_text);

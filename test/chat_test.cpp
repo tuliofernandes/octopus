@@ -80,7 +80,7 @@ class StreamingBackend final : public octopus::LlmBackend {
   std::size_t next_result_ = 0;
 };
 
-octopus::CompletionResult successful_completion(std::string text) {
+octopus::CompletionResult successfulCompletion(std::string text) {
   octopus::CompletionResult completion;
   completion.text = std::move(text);
   completion.finish_reason = octopus::FinishReason::EndOfGeneration;
@@ -91,7 +91,7 @@ octopus::CompletionResult successful_completion(std::string text) {
 
 TEST_CASE("CLI chat prompts, sends one user line, and exits cleanly on EOF",
           "[chat]") {
-  RecordingBackend backend({successful_completion("Hello from Octopus.")});
+  RecordingBackend backend({successfulCompletion("Hello from Octopus.")});
 
   octopus::CliOptions options;
   options.mode = octopus::CliMode::Interactive;
@@ -118,8 +118,8 @@ TEST_CASE("CLI chat prompts, sends one user line, and exits cleanly on EOF",
 
 TEST_CASE("CLI chat preserves assistant replies in later turn history",
           "[chat]") {
-  RecordingBackend backend({successful_completion("You said hello."),
-                            successful_completion("You said: Hello")});
+  RecordingBackend backend({successfulCompletion("You said hello."),
+                            successfulCompletion("You said: Hello")});
 
   octopus::CliOptions options;
   options.mode = octopus::CliMode::Interactive;
@@ -154,7 +154,7 @@ TEST_CASE("CLI chat preserves assistant replies in later turn history",
 TEST_CASE("CLI chat renders streaming chunks without duplicating final text",
           "[chat]") {
   StreamingBackend backend({{"Hello", " from", " Octopus."}},
-                           {successful_completion("Hello from Octopus.")});
+                           {successfulCompletion("Hello from Octopus.")});
 
   octopus::CliOptions options;
   options.mode = octopus::CliMode::Interactive;
@@ -174,7 +174,7 @@ TEST_CASE("CLI chat renders streaming chunks without duplicating final text",
 
 TEST_CASE("CLI chat ignores blank lines without calling the backend",
           "[chat]") {
-  RecordingBackend backend({successful_completion("Only once.")});
+  RecordingBackend backend({successfulCompletion("Only once.")});
 
   octopus::CliOptions options;
   options.mode = octopus::CliMode::Interactive;
@@ -194,8 +194,8 @@ TEST_CASE("CLI chat ignores blank lines without calling the backend",
 TEST_CASE("CLI chat records final streaming result as assistant history",
           "[chat]") {
   StreamingBackend backend({{"First", " answer."}, {"Second", " answer."}},
-                           {successful_completion("First answer."),
-                            successful_completion("Second answer.")});
+                           {successfulCompletion("First answer."),
+                            successfulCompletion("Second answer.")});
 
   octopus::CliOptions options;
   options.mode = octopus::CliMode::Interactive;
@@ -268,7 +268,7 @@ TEST_CASE("CLI chat treats loop-detected output as assistant history",
   loop_detected.text = "Useful prefix.";
   loop_detected.finish_reason = octopus::FinishReason::LoopDetected;
   RecordingBackend backend(
-      {loop_detected, successful_completion("The prefix was useful.")});
+      {loop_detected, successfulCompletion("The prefix was useful.")});
 
   octopus::CliOptions options;
   options.mode = octopus::CliMode::Interactive;

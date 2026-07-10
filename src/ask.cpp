@@ -21,7 +21,7 @@ constexpr float kAskRepeatPenalty = 1.05F;
  * Only transport/backend failures should make the CLI fail. Other finish
  * reasons, including loop detection, can still produce user-visible text.
  */
-bool completion_failed(const CompletionResult& completion) {
+bool completionFailed(const CompletionResult& completion) {
   return completion.finish_reason == FinishReason::BackendError;
 }
 
@@ -58,7 +58,7 @@ CompletionRequest makeConversationRequest(const CliOptions& options,
   request.generation.max_tokens = options.n_predict;
   request.generation.sampler_profile = SamplerProfile::Deterministic;
   request.generation.quiet = options.quiet;
-  request.generation.stopStrings = profile.stopStrings;
+  request.generation.stop_strings = profile.stop_strings;
   request.generation.repeat_last_n = kAskRepeatLastN;
   request.generation.repeat_penalty = kAskRepeatPenalty;
   request.generation.frequency_penalty = 0.0F;
@@ -82,7 +82,7 @@ AskRunResult runOneShotAsk(const CliOptions& options, LlmBackend& backend,
    */
   result.completion = backend.complete(makeAskRequest(options));
 
-  if (completion_failed(result.completion)) {
+  if (completionFailed(result.completion)) {
     result.exit_code = 1;
     err << (result.completion.error.empty() ? "LLM backend error"
                                             : result.completion.error)
