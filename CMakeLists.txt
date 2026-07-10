@@ -8,6 +8,37 @@ project(octopus
 # Export compile commands for use with clangd
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+find_program(CLANG_FORMAT_EXE NAMES clang-format)
+
+set(OCTOPUS_FORMAT_SOURCES
+        include/octopus/ask.hpp
+        include/octopus/chat.hpp
+        include/octopus/cli.hpp
+        include/octopus/completion.hpp
+        include/octopus/llama_cpp_backend.hpp
+        include/octopus/llm.hpp
+        include/octopus/prompt.hpp
+        src/ask.cpp
+        src/chat.cpp
+        src/cli.cpp
+        src/completion.cpp
+        src/llama_cpp_backend.cpp
+        src/main.cpp
+        src/prompt.cpp
+        test/ask_test.cpp
+        test/chat_test.cpp
+        test/cli_test.cpp
+        test/completion_test.cpp
+        test/prompt_test.cpp
+        test/smoke_test.cpp)
+
+if(CLANG_FORMAT_EXE)
+        add_custom_target(format-check
+                COMMAND ${CLANG_FORMAT_EXE} --dry-run --Werror ${OCTOPUS_FORMAT_SOURCES}
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                COMMENT "Checking Octopus C++ formatting")
+endif()
+
 # find Catch2 - if configured Conan2 will be used as dependency provider
 find_package(Catch2 REQUIRED)
 include(FetchContent)
