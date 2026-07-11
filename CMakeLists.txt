@@ -13,6 +13,9 @@ find_program(CLANG_FORMAT_EXE NAMES clang-format)
 set(OCTOPUS_FORMAT_SOURCES
         include/octopus/ask.hpp
         include/octopus/chat.hpp
+        include/octopus/cli/cli.hpp
+        include/octopus/cli/input_editor.hpp
+        include/octopus/cli/terminal_input.hpp
         include/octopus/cli.hpp
         include/octopus/completion.hpp
         include/octopus/input_editor.hpp
@@ -22,13 +25,13 @@ set(OCTOPUS_FORMAT_SOURCES
         include/octopus/terminal_input.hpp
         src/ask.cpp
         src/chat.cpp
-        src/cli.cpp
+        src/cli/cli.cpp
+        src/cli/input/input_editor.cpp
+        src/cli/input/terminal_input.cpp
         src/completion.cpp
-        src/input_editor.cpp
         src/llama_cpp_backend.cpp
         apps/octo/main.cpp
         src/prompt.cpp
-        src/terminal_input.cpp
         test/ask_test.cpp
         test/chat_test.cpp
         test/cli_test.cpp
@@ -56,7 +59,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(llama)
 
-add_library(octopus_cli STATIC src/cli.cpp)
+add_library(octopus_cli STATIC src/cli/cli.cpp)
 target_include_directories(octopus_cli PUBLIC include)
 target_compile_features(octopus_cli PUBLIC cxx_std_17)
 target_compile_options(octopus_cli PRIVATE -Wall -Wextra -Wpedantic -Werror)
@@ -65,9 +68,9 @@ add_library(octopus_llm STATIC
         src/ask.cpp
         src/chat.cpp
         src/completion.cpp
-        src/input_editor.cpp
+        src/cli/input/input_editor.cpp
         src/prompt.cpp
-        src/terminal_input.cpp)
+        src/cli/input/terminal_input.cpp)
 target_include_directories(octopus_llm PUBLIC include)
 target_compile_features(octopus_llm PUBLIC cxx_std_17)
 target_link_libraries(octopus_llm PUBLIC octopus_cli)
