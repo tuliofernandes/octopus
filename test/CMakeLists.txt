@@ -10,6 +10,7 @@ target_sources(octopus_tests PRIVATE
         completion_test.cpp
         input_editor_test.cpp
         prompt_test.cpp
+        public_header_compatibility_test.cpp
         smoke_test.cpp
         terminal_input_test.cpp)
 target_link_libraries(octopus_tests PRIVATE Catch2::Catch2WithMain octopus_llm)

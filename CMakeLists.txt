@@ -35,6 +35,7 @@ set(OCTOPUS_FORMAT_SOURCES
         test/completion_test.cpp
         test/input_editor_test.cpp
         test/prompt_test.cpp
+        test/public_header_compatibility_test.cpp
         test/smoke_test.cpp
         test/terminal_input_test.cpp)
 
