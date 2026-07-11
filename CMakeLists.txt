@@ -26,7 +26,7 @@ set(OCTOPUS_FORMAT_SOURCES
         src/completion.cpp
         src/input_editor.cpp
         src/llama_cpp_backend.cpp
-        src/main.cpp
+        apps/octo/main.cpp
         src/prompt.cpp
         src/terminal_input.cpp
         test/ask_test.cpp
@@ -73,7 +73,7 @@ target_compile_features(octopus_llm PUBLIC cxx_std_17)
 target_link_libraries(octopus_llm PUBLIC octopus_cli)
 target_compile_options(octopus_llm PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
-add_executable(octo src/main.cpp src/llama_cpp_backend.cpp)
+add_executable(octo apps/octo/main.cpp src/llama_cpp_backend.cpp)
 target_include_directories(octo PUBLIC include)
 target_compile_features(octo PUBLIC cxx_std_17)
 target_link_libraries(octo PRIVATE octopus_llm llama)
