@@ -38,15 +38,15 @@ set(OCTOPUS_FORMAT_SOURCES
         src/inference/backend/llama_cpp_backend.cpp
         apps/octo/main.cpp
         src/prompt/prompt.cpp
-        test/ask_test.cpp
-        test/chat_test.cpp
-        test/cli_test.cpp
-        test/completion_test.cpp
-        test/input_editor_test.cpp
-        test/prompt_test.cpp
-        test/public_header_compatibility_test.cpp
-        test/smoke_test.cpp
-        test/terminal_input_test.cpp)
+        test/cli/ask_test.cpp
+        test/cli/chat_test.cpp
+        test/cli/cli_test.cpp
+        test/cli/input_editor_test.cpp
+        test/cli/terminal_input_test.cpp
+        test/inference/completion_test.cpp
+        test/prompt/prompt_test.cpp
+        test/smoke/public_header_compatibility_test.cpp
+        test/smoke/smoke_test.cpp)
 
 if(CLANG_FORMAT_EXE)
         add_custom_target(format-check
