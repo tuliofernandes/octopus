@@ -20,6 +20,7 @@ set(OCTOPUS_FORMAT_SOURCES
         include/octopus/cli/terminal_input.hpp
         include/octopus/cli.hpp
         include/octopus/completion.hpp
+        include/octopus/inference/backend/llama_cpp_backend.hpp
         include/octopus/inference/harness/completion.hpp
         include/octopus/inference/harness/llm.hpp
         include/octopus/input_editor.hpp
@@ -34,7 +35,7 @@ set(OCTOPUS_FORMAT_SOURCES
         src/cli/modes/ask.cpp
         src/cli/modes/chat.cpp
         src/inference/harness/completion.cpp
-        src/llama_cpp_backend.cpp
+        src/inference/backend/llama_cpp_backend.cpp
         apps/octo/main.cpp
         src/prompt/prompt.cpp
         test/ask_test.cpp
@@ -81,7 +82,8 @@ target_compile_features(octopus_llm PUBLIC cxx_std_17)
 target_link_libraries(octopus_llm PUBLIC octopus_cli)
 target_compile_options(octopus_llm PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
-add_executable(octo apps/octo/main.cpp src/llama_cpp_backend.cpp)
+add_executable(octo apps/octo/main.cpp
+        src/inference/backend/llama_cpp_backend.cpp)
 target_include_directories(octo PUBLIC include)
 target_compile_features(octo PUBLIC cxx_std_17)
 target_link_libraries(octo PRIVATE octopus_llm llama)
