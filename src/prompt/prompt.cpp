@@ -1,4 +1,4 @@
-#include "octopus/prompt.hpp"
+#include "octopus/prompt/prompt.hpp"
 
 #include <sstream>
 #include <string>

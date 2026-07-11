@@ -1,4 +1,4 @@
-#include "octopus/input_editor.hpp"
+#include "octopus/cli/input_editor.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 

@@ -1,7 +1,7 @@
-#include "octopus/chat.hpp"
+#include "octopus/cli/chat.hpp"
 
-#include "octopus/ask.hpp"
-#include "octopus/input_editor.hpp"
+#include "octopus/cli/ask.hpp"
+#include "octopus/cli/input_editor.hpp"
 
 #include <csignal>
 #include <istream>

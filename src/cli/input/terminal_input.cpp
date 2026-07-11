@@ -1,4 +1,4 @@
-#include "octopus/terminal_input.hpp"
+#include "octopus/cli/terminal_input.hpp"
 
 #include <cerrno>
 #include <cctype>

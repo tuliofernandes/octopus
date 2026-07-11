@@ -1,7 +1,7 @@
-#include "octopus/ask.hpp"
-#include "octopus/chat.hpp"
-#include "octopus/cli.hpp"
-#include "octopus/llama_cpp_backend.hpp"
+#include "octopus/cli/ask.hpp"
+#include "octopus/cli/chat.hpp"
+#include "octopus/cli/cli.hpp"
+#include "octopus/inference/backend/llama_cpp_backend.hpp"
 
 #include <iostream>
 #include <string>

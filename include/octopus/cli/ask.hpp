@@ -1,7 +1,7 @@
 #pragma once
 
-#include "octopus/cli.hpp"
-#include "octopus/llm.hpp"
+#include "octopus/cli/cli.hpp"
+#include "octopus/inference/harness/llm.hpp"
 
 #include <iosfwd>
 

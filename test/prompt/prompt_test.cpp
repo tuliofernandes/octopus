@@ -1,4 +1,4 @@
-#include "octopus/prompt.hpp"
+#include "octopus/prompt/prompt.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 

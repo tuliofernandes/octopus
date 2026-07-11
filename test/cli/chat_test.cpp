@@ -1,4 +1,4 @@
-#include "octopus/chat.hpp"
+#include "octopus/cli/chat.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 

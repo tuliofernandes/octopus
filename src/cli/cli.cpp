@@ -1,4 +1,4 @@
-#include "octopus/cli.hpp"
+#include "octopus/cli/cli.hpp"
 
 #include <algorithm>
 #include <iterator>

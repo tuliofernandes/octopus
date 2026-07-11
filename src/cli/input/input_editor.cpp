@@ -1,6 +1,6 @@
-#include "octopus/input_editor.hpp"
+#include "octopus/cli/input_editor.hpp"
 
-#include "octopus/terminal_input.hpp"
+#include "octopus/cli/terminal_input.hpp"
 
 #include <istream>
 #include <ostream>

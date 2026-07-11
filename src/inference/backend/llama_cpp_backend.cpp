@@ -1,7 +1,7 @@
-#include "octopus/llama_cpp_backend.hpp"
+#include "octopus/inference/backend/llama_cpp_backend.hpp"
 
-#include "octopus/completion.hpp"
-#include "octopus/prompt.hpp"
+#include "octopus/inference/harness/completion.hpp"
+#include "octopus/prompt/prompt.hpp"
 
 #include "ggml-backend.h"
 #include "llama.h"

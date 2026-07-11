@@ -11,24 +11,15 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_program(CLANG_FORMAT_EXE NAMES clang-format)
 
 set(OCTOPUS_FORMAT_SOURCES
-        include/octopus/ask.hpp
-        include/octopus/chat.hpp
         include/octopus/cli/ask.hpp
         include/octopus/cli/chat.hpp
         include/octopus/cli/cli.hpp
         include/octopus/cli/input_editor.hpp
         include/octopus/cli/terminal_input.hpp
-        include/octopus/cli.hpp
-        include/octopus/completion.hpp
         include/octopus/inference/backend/llama_cpp_backend.hpp
         include/octopus/inference/harness/completion.hpp
         include/octopus/inference/harness/llm.hpp
-        include/octopus/input_editor.hpp
-        include/octopus/llama_cpp_backend.hpp
-        include/octopus/llm.hpp
         include/octopus/prompt/prompt.hpp
-        include/octopus/prompt.hpp
-        include/octopus/terminal_input.hpp
         src/cli/cli.cpp
         src/cli/input/input_editor.cpp
         src/cli/input/terminal_input.cpp
