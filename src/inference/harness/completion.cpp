@@ -1,4 +1,4 @@
-#include "octopus/completion.hpp"
+#include "octopus/inference/harness/completion.hpp"
 
 #include <algorithm>
 #include <cstddef>

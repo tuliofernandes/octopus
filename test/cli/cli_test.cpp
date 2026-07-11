@@ -1,4 +1,4 @@
-#include "octopus/cli.hpp"
+#include "octopus/cli/cli.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 

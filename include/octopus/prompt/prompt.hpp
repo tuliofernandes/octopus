@@ -1,6 +1,6 @@
 #pragma once
 
-#include "octopus/llm.hpp"
+#include "octopus/inference/harness/llm.hpp"
 
 #include <string>
 #include <vector>
