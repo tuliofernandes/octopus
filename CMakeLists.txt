@@ -20,6 +20,8 @@ set(OCTOPUS_FORMAT_SOURCES
         include/octopus/cli/terminal_input.hpp
         include/octopus/cli.hpp
         include/octopus/completion.hpp
+        include/octopus/inference/harness/completion.hpp
+        include/octopus/inference/harness/llm.hpp
         include/octopus/input_editor.hpp
         include/octopus/llama_cpp_backend.hpp
         include/octopus/llm.hpp
@@ -31,7 +33,7 @@ set(OCTOPUS_FORMAT_SOURCES
         src/cli/input/terminal_input.cpp
         src/cli/modes/ask.cpp
         src/cli/modes/chat.cpp
-        src/completion.cpp
+        src/inference/harness/completion.cpp
         src/llama_cpp_backend.cpp
         apps/octo/main.cpp
         src/prompt/prompt.cpp
@@ -70,7 +72,7 @@ target_compile_options(octopus_cli PRIVATE -Wall -Wextra -Wpedantic -Werror)
 add_library(octopus_llm STATIC
         src/cli/modes/ask.cpp
         src/cli/modes/chat.cpp
-        src/completion.cpp
+        src/inference/harness/completion.cpp
         src/cli/input/input_editor.cpp
         src/prompt/prompt.cpp
         src/cli/input/terminal_input.cpp)
