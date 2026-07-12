@@ -198,3 +198,36 @@ TEST_CASE("terminal input emits cancellation on Ctrl+C", "[terminal-input]") {
   CHECK(event.type == octopus::TerminalInputEventType::Cancelled);
   CHECK(editor.currentLine().empty());
 }
+
+TEST_CASE("terminal style policy keeps non-TTY output plain",
+          "[terminal-input]") {
+  const auto style =
+      octopus::makeTerminalStylePolicy(false, false, "xterm-256color");
+
+  CHECK(style.user_start.empty());
+  CHECK(style.user_end.empty());
+}
+
+TEST_CASE("terminal style policy honors NO_COLOR", "[terminal-input]") {
+  const auto style =
+      octopus::makeTerminalStylePolicy(true, true, "xterm-256color");
+
+  CHECK(style.user_start.empty());
+  CHECK(style.user_end.empty());
+}
+
+TEST_CASE("terminal style policy keeps TERM=dumb plain", "[terminal-input]") {
+  const auto style = octopus::makeTerminalStylePolicy(true, false, "dumb");
+
+  CHECK(style.user_start.empty());
+  CHECK(style.user_end.empty());
+}
+
+TEST_CASE("terminal style policy quiets interactive TTY user input",
+          "[terminal-input]") {
+  const auto style =
+      octopus::makeTerminalStylePolicy(true, false, "xterm-256color");
+
+  CHECK(style.user_start == "\x1b[2m");
+  CHECK(style.user_end == "\x1b[0m");
+}

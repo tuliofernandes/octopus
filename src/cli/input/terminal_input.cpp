@@ -2,6 +2,7 @@
 
 #include <cerrno>
 #include <cctype>
+#include <cstdlib>
 #include <iostream>
 #include <istream>
 #include <ostream>
@@ -19,6 +20,8 @@ constexpr char kCtrlD = '\x04';
 constexpr char kCtrlW = '\x17';
 constexpr char kBackspace = '\x08';
 constexpr char kDelete = '\x7f';
+constexpr std::string_view kQuietUserTextStyle = "\x1b[2m";
+constexpr std::string_view kResetStyle = "\x1b[0m";
 bool endsWithContinuation(const std::string& line) {
   return !line.empty() && line.back() == '\\';
 }
@@ -33,6 +36,16 @@ void appendLine(std::string& pending, const std::string& line) {
 bool isInteractiveTerminal(const std::istream& in, const std::ostream& out) {
   return &in == &std::cin && &out == &std::cout && isatty(STDIN_FILENO) != 0 &&
          isatty(STDOUT_FILENO) != 0;
+}
+
+bool hasNoColorEnvironment() { return std::getenv("NO_COLOR") != nullptr; }
+
+std::string environmentValue(const char* name) {
+  const char* value = std::getenv(name);
+  if (value == nullptr) {
+    return "";
+  }
+  return value;
 }
 
 class ScopedRawTerminal final {
@@ -127,17 +140,12 @@ RenderMetrics measureInput(std::string_view prompt,
   return metrics;
 }
 
-std::size_t redrawInput(std::ostream& out, std::string_view prompt,
-                        std::string_view continuation_prompt,
-                        const TerminalLineEditor& editor,
-                        std::size_t previous_rows) {
-  if (previous_rows > 1) {
-    out << "\r\x1b[" << (previous_rows - 1) << "A";
-  } else {
-    out << '\r';
-  }
-
-  out << "\x1b[J" << prompt;
+void writeStyledInput(std::ostream& out, std::string_view prompt,
+                      std::string_view continuation_prompt,
+                      const TerminalLineEditor& editor,
+                      const TerminalStylePolicy& style) {
+  out << style.user_start;
+  out << prompt;
   const auto& line = editor.currentLine();
   for (const char byte : line) {
     if (byte == '\n') {
@@ -146,6 +154,22 @@ std::size_t redrawInput(std::ostream& out, std::string_view prompt,
     }
     out << byte;
   }
+  out << style.user_end;
+}
+
+std::size_t redrawInput(std::ostream& out, std::string_view prompt,
+                        std::string_view continuation_prompt,
+                        const TerminalLineEditor& editor,
+                        std::size_t previous_rows,
+                        const TerminalStylePolicy& style) {
+  if (previous_rows > 1) {
+    out << "\r\x1b[" << (previous_rows - 1) << "A";
+  } else {
+    out << '\r';
+  }
+
+  out << "\x1b[J";
+  writeStyledInput(out, prompt, continuation_prompt, editor, style);
 
   const auto metrics = measureInput(prompt, continuation_prompt, editor);
   if (metrics.end.row > metrics.cursor.row) {
@@ -185,7 +209,8 @@ TerminalReadResult readCookedInput(std::istream& in, std::ostream& out,
 }
 
 TerminalReadResult readRawInput(std::ostream& out, std::string_view prompt,
-                                std::string_view continuation_prompt) {
+                                std::string_view continuation_prompt,
+                                const TerminalStylePolicy& style) {
   ScopedRawTerminal terminal(STDIN_FILENO);
   if (!terminal.active()) {
     return {TerminalReadStatus::EndOfFile, ""};
@@ -194,21 +219,21 @@ TerminalReadResult readRawInput(std::ostream& out, std::string_view prompt,
   ScopedBracketedPaste bracketed_paste(out);
   TerminalLineEditor editor;
   std::size_t rendered_rows = 1;
-  out << prompt;
+  out << style.user_start << prompt << style.user_end;
   out.flush();
 
   while (true) {
     char byte = '\0';
     const ssize_t read_count = read(STDIN_FILENO, &byte, 1);
     if (read_count == 0) {
-      out << '\n';
+      out << style.user_end << '\n';
       return {TerminalReadStatus::EndOfFile, ""};
     }
     if (read_count < 0) {
       if (errno == EINTR) {
         continue;
       }
-      out << '\n';
+      out << style.user_end << '\n';
       return {TerminalReadStatus::EndOfFile, ""};
     }
 
@@ -216,13 +241,13 @@ TerminalReadResult readRawInput(std::ostream& out, std::string_view prompt,
     const auto event = editor.feed(byte);
     switch (event.type) {
       case TerminalInputEventType::Submitted:
-        out << '\n';
+        out << style.user_end << '\n';
         return {TerminalReadStatus::Submitted, event.text};
       case TerminalInputEventType::EndOfFile:
-        out << '\n';
+        out << style.user_end << '\n';
         return {TerminalReadStatus::EndOfFile, ""};
       case TerminalInputEventType::Cancelled:
-        out << "^C\n";
+        out << style.user_end << "^C\n";
         return {TerminalReadStatus::Cancelled, ""};
       case TerminalInputEventType::None:
         break;
@@ -231,7 +256,7 @@ TerminalReadResult readRawInput(std::ostream& out, std::string_view prompt,
     if (was_pasting || editor.isPasting()) {
       if (was_pasting && !editor.isPasting()) {
         rendered_rows = redrawInput(out, prompt, continuation_prompt, editor,
-                                    rendered_rows);
+                                    rendered_rows, style);
       }
       continue;
     }
@@ -240,12 +265,21 @@ TerminalReadResult readRawInput(std::ostream& out, std::string_view prompt,
       continue;
     }
 
-    rendered_rows =
-        redrawInput(out, prompt, continuation_prompt, editor, rendered_rows);
+    rendered_rows = redrawInput(out, prompt, continuation_prompt, editor,
+                                rendered_rows, style);
   }
 }
 
 }  // namespace
+
+TerminalStylePolicy makeTerminalStylePolicy(bool is_interactive_tty,
+                                            bool no_color,
+                                            std::string_view term) noexcept {
+  if (!is_interactive_tty || no_color || term == "dumb") {
+    return {};
+  }
+  return {kQuietUserTextStyle, kResetStyle};
+}
 
 TerminalInputEvent TerminalLineEditor::feed(char byte) {
   const unsigned char unsigned_byte = static_cast<unsigned char>(byte);
@@ -544,7 +578,10 @@ TerminalReadResult readTerminalInput(std::istream& in, std::ostream& out,
                                      std::string_view prompt,
                                      std::string_view continuation_prompt) {
   if (isInteractiveTerminal(in, out)) {
-    return readRawInput(out, prompt, continuation_prompt);
+    const std::string term = environmentValue("TERM");
+    const TerminalStylePolicy style =
+        makeTerminalStylePolicy(true, hasNoColorEnvironment(), term);
+    return readRawInput(out, prompt, continuation_prompt, style);
   }
   return readCookedInput(in, out, prompt);
 }

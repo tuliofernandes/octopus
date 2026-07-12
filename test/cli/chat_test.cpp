@@ -142,7 +142,7 @@ TEST_CASE("CLI chat prompts, sends one user line, and exits cleanly on EOF",
   CHECK(backend.requests[0].conversation.messages[2].role ==
         octopus::Role::User);
   CHECK(backend.requests[0].conversation.messages[2].content == "Hello");
-  CHECK(out.str() == "you> octopus> Hello from Octopus.\nyou> ");
+  CHECK(out.str() == "> \nHello from Octopus.\n\n> ");
   CHECK(err.str().empty());
 }
 
@@ -198,7 +198,7 @@ TEST_CASE("CLI chat renders streaming chunks without duplicating final text",
   CHECK(result.exit_code == 0);
   CHECK(backend.blocking_calls == 0);
   REQUIRE(backend.requests.size() == 1);
-  CHECK(out.str() == "you> octopus> Hello from Octopus.\nyou> ");
+  CHECK(out.str() == "> \nHello from Octopus.\n\n> ");
   CHECK(err.str().empty());
 }
 
@@ -217,7 +217,7 @@ TEST_CASE("CLI chat ignores blank lines without calling the backend",
 
   CHECK(result.exit_code == 0);
   CHECK(backend.requests.size() == 1);
-  CHECK(out.str() == "you> you> octopus> Only once.\nyou> you> ");
+  CHECK(out.str() == "> > \nOnly once.\n\n> > ");
   CHECK(err.str().empty());
 }
 
@@ -238,7 +238,7 @@ TEST_CASE("CLI chat joins continued lines into one user message", "[chat]") {
   REQUIRE(backend.requests[0].conversation.messages.size() == 3);
   CHECK(backend.requests[0].conversation.messages[2].content ==
         "First line\nsecond line");
-  CHECK(out.str() == "you> octopus> Joined.\nyou> ");
+  CHECK(out.str() == "> \nJoined.\n\n> ");
   CHECK(err.str().empty());
 }
 
@@ -288,7 +288,7 @@ TEST_CASE("CLI chat reports backend errors and stops without assistant history",
   REQUIRE(backend.requests[0].conversation.messages.size() == 3);
   CHECK(backend.requests[0].conversation.messages.back().role ==
         octopus::Role::User);
-  CHECK(out.str() == "you> ");
+  CHECK(out.str() == "> ");
   CHECK(err.str().find("model failed") != std::string::npos);
 }
 
@@ -309,7 +309,7 @@ TEST_CASE("CLI chat ends a partial streamed line before reporting an error",
   const auto result = octopus::runCliChat(options, backend, in, out, err);
 
   CHECK(result.exit_code == 1);
-  CHECK(out.str() == "you> octopus> Partial answer\n");
+  CHECK(out.str() == "> \nPartial answer\n");
   CHECK(err.str().find("decode failed") != std::string::npos);
 }
 
@@ -337,7 +337,7 @@ TEST_CASE("CLI chat treats loop-detected output as assistant history",
         octopus::Role::Assistant);
   CHECK(backend.requests[1].conversation.messages[3].content ==
         "Useful prefix.");
-  CHECK(out.str().find("octopus> Useful prefix.\n") != std::string::npos);
+  CHECK(out.str().find("\nUseful prefix.\n\n") != std::string::npos);
   CHECK(err.str().empty());
 }
 
@@ -355,7 +355,7 @@ TEST_CASE("CLI chat exits cleanly on EOF before a message", "[chat]") {
 
   CHECK(result.exit_code == 0);
   CHECK(backend.requests.empty());
-  CHECK(out.str() == "you> ");
+  CHECK(out.str() == "> ");
   CHECK(err.str().empty());
 }
 
@@ -379,6 +379,6 @@ TEST_CASE("CLI chat handles cancelled generation without assistant history",
   CHECK(backend.requests[1].conversation.messages[2].role ==
         octopus::Role::User);
   CHECK(backend.requests[1].conversation.messages[2].content == "Again");
-  CHECK(out.str() == "you> octopus> Partial\nyou> octopus> Partial\nyou> ");
+  CHECK(out.str() == "> \nPartial\n\n> \nPartial\n\n> ");
   CHECK(err.str().empty());
 }

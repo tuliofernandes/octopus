@@ -11,9 +11,8 @@
 namespace octopus {
 namespace {
 
-constexpr const char* kAssistantPrompt = "octopus> ";
-constexpr const char* kUserPrompt = "you> ";
-constexpr const char* kContinuationPrompt = "...> ";
+constexpr const char* kUserPrompt = "> ";
+constexpr const char* kContinuationPrompt = "... ";
 
 volatile std::sig_atomic_t g_generation_cancelled = 0;
 
@@ -79,7 +78,7 @@ class ChatOutputSink final : public CompletionSink {
 
   void finishSuccess() {
     ensureStarted();
-    out_ << '\n';
+    out_ << "\n\n";
   }
 
   void finishError() {
@@ -90,14 +89,14 @@ class ChatOutputSink final : public CompletionSink {
 
   void finishCancelled() {
     if (started_) {
-      out_ << '\n';
+      out_ << "\n\n";
     }
   }
 
  private:
   void ensureStarted() {
     if (!started_) {
-      out_ << kAssistantPrompt;
+      out_ << '\n';
       started_ = true;
     }
   }

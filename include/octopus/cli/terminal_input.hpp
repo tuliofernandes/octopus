@@ -76,6 +76,15 @@ struct TerminalReadResult {
   std::string text;
 };
 
+struct TerminalStylePolicy {
+  std::string_view user_start;
+  std::string_view user_end;
+};
+
+TerminalStylePolicy makeTerminalStylePolicy(bool is_interactive_tty,
+                                            bool no_color,
+                                            std::string_view term) noexcept;
+
 // Low-level terminal input reader used by InputEditor. Real TTY stdin/stdout
 // uses raw-mode editing; all other streams use cooked std::getline semantics.
 TerminalReadResult readTerminalInput(std::istream& in, std::ostream& out,
