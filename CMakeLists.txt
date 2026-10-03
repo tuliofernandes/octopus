@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.25)
 
 project(octopus
         VERSION 1.0.0
-        DESCRIPTION "A conservative C++ CLI agent skeleton based on llama.cpp"
+        DESCRIPTION "A local-first C++ CLI AI agent based on llama.cpp"
         LANGUAGES CXX)
 
 # Export compile commands for use with clangd
