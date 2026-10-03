@@ -2,6 +2,9 @@
 #include "octopus/cli/chat.hpp"
 #include "octopus/cli/cli.hpp"
 #include "octopus/inference/backend/llama_cpp_backend.hpp"
+#include "octopus/llm/runtime.hpp"
+
+#include "models/google/gemma/integration.hpp"
 
 #include <iostream>
 #include <string>
@@ -33,15 +36,17 @@ int main(int argc, char** argv) {
   }
 
   const auto& options = cli.options;
-  // main wires CLI to the harness: parse user intent, build one concrete
-  // backend, then let mode runners handle request construction and output.
-  octopus::LlamaCppBackend backend(
+  // The composition root owns borrowed dependencies in destruction-safe order:
+  // runtime, integration, then the native backend/template engine.
+  octopus::inference::LlamaCppBackend backend(
       {options.model_path, options.n_gpu_layers, options.quiet});
+  octopus::models::google::gemma::GemmaIntegration gemma(backend);
+  octopus::llm::Runtime runtime(gemma.modelIntegration(), backend);
   if (options.mode == octopus::CliMode::Interactive) {
-    return octopus::runCliChat(options, backend, std::cin, std::cout, std::cerr)
+    return octopus::runCliChat(options, runtime, std::cin, std::cout, std::cerr)
         .exit_code;
   }
 
-  return octopus::runOneShotAsk(options, backend, std::cout, std::cerr)
+  return octopus::runOneShotAsk(options, runtime, std::cout, std::cerr)
       .exit_code;
 }

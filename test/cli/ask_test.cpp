@@ -8,28 +8,76 @@
 
 namespace {
 
-class FakeBackend final : public octopus::LlmBackend {
+class RecordingCompiler final : public octopus::llm::PromptCompiler {
  public:
-  explicit FakeBackend(octopus::CompletionResult result)
+  octopus::llm::CompileResult compile(
+      const octopus::llm::Conversation& conversation) const override {
+    last_conversation = conversation;
+    ++calls;
+    return octopus::llm::CompileResult::success({"compiled", {"<stop>"}});
+  }
+
+  mutable int calls = 0;
+  mutable octopus::llm::Conversation last_conversation;
+};
+
+class PassThroughParser final : public octopus::llm::AssistantResponseParser {
+ public:
+  octopus::llm::ParseResult parse(
+      const octopus::llm::RawCompletion& completion) const override {
+    return octopus::llm::ParseResult::success({completion.text});
+  }
+};
+
+class FakeBackend final : public octopus::llm::InferenceBackend {
+ public:
+  explicit FakeBackend(octopus::llm::InferenceResult result)
       : result_(std::move(result)) {}
 
-  octopus::CompletionResult complete(
-      const octopus::CompletionRequest& request) override {
-    last_request = request;
+  octopus::llm::InferenceResult generate(
+      const octopus::llm::CompiledPrompt& prompt,
+      const octopus::llm::GenerationOptions& generation,
+      const octopus::llm::CancellationToken* cancellation,
+      octopus::llm::CompletionSink* sink) override {
+    last_prompt = prompt;
+    last_generation = generation;
+    last_cancellation = cancellation;
+    last_sink = sink;
     ++calls;
     return result_;
   }
 
   int calls = 0;
-  octopus::CompletionRequest last_request;
+  octopus::llm::CompiledPrompt last_prompt;
+  octopus::llm::GenerationOptions last_generation;
+  const octopus::llm::CancellationToken* last_cancellation = nullptr;
+  octopus::llm::CompletionSink* last_sink = nullptr;
 
  private:
-  octopus::CompletionResult result_;
+  octopus::llm::InferenceResult result_;
+};
+
+class RuntimeHarness final {
+ public:
+  explicit RuntimeHarness(octopus::llm::InferenceResult completion)
+      : integration_({}, compiler, parser),
+        backend(std::move(completion)),
+        runtime(integration_, backend) {}
+
+  RecordingCompiler compiler;
+  PassThroughParser parser;
+
+ private:
+  octopus::llm::ModelIntegration integration_;
+
+ public:
+  FakeBackend backend;
+  octopus::llm::Runtime runtime;
 };
 
 }  // namespace
 
-TEST_CASE("ask options build a message-shaped completion request", "[ask]") {
+TEST_CASE("ask options build a model-neutral completion request", "[ask]") {
   octopus::CliOptions options;
   options.mode = octopus::CliMode::Ask;
   options.prompt = "Who was John Kennedy?";
@@ -39,136 +87,106 @@ TEST_CASE("ask options build a message-shaped completion request", "[ask]") {
   const auto request = octopus::makeAskRequest(options);
 
   REQUIRE(request.conversation.messages.size() == 3);
-  CHECK(request.conversation.messages[0].role == octopus::Role::System);
+  CHECK(request.conversation.messages[0].role == octopus::llm::Role::System);
   CHECK_FALSE(request.conversation.messages[0].content.empty());
-  CHECK(request.conversation.messages[1].role == octopus::Role::Developer);
+  CHECK(request.conversation.messages[1].role == octopus::llm::Role::Developer);
   CHECK_FALSE(request.conversation.messages[1].content.empty());
-  CHECK(request.conversation.messages[2].role == octopus::Role::User);
+  CHECK(request.conversation.messages[2].role == octopus::llm::Role::User);
   CHECK(request.conversation.messages[2].content == "Who was John Kennedy?");
   CHECK(request.generation.max_tokens == 128);
   CHECK(request.generation.sampler_profile ==
-        octopus::SamplerProfile::Deterministic);
+        octopus::llm::SamplerProfile::Deterministic);
   CHECK(request.generation.repeat_last_n == 64);
   CHECK(request.generation.repeat_penalty == 1.05F);
   CHECK(request.generation.frequency_penalty == 0.0F);
   CHECK(request.generation.presence_penalty == 0.0F);
-  CHECK(octopus::repeatPenaltyEnabled(request.generation));
-  REQUIRE(request.generation.stop_strings.size() == 1);
-  CHECK(request.generation.stop_strings[0] == "<end_of_turn>");
+  CHECK(octopus::llm::repeatPenaltyEnabled(request.generation));
 }
 
 TEST_CASE("generation options validate repeat penalty policy", "[ask]") {
-  octopus::GenerationOptions options;
-  CHECK(octopus::validateGenerationOptions(options).ok);
+  octopus::llm::GenerationOptions options;
+  CHECK(octopus::llm::validateGenerationOptions(options).ok);
 
   options.repeat_penalty = 1.05F;
-  auto validation = octopus::validateGenerationOptions(options);
+  auto validation = octopus::llm::validateGenerationOptions(options);
   CHECK_FALSE(validation.ok);
   CHECK(validation.error.find("repeat_last_n") != std::string::npos);
 
   options.repeat_last_n = 64;
-  CHECK(octopus::validateGenerationOptions(options).ok);
+  CHECK(octopus::llm::validateGenerationOptions(options).ok);
 
   options.repeat_penalty = 0.95F;
-  validation = octopus::validateGenerationOptions(options);
+  validation = octopus::llm::validateGenerationOptions(options);
   CHECK_FALSE(validation.ok);
   CHECK(validation.error.find("repeat_penalty") != std::string::npos);
 
   options.repeat_penalty = 1.05F;
   options.frequency_penalty = -0.1F;
-  validation = octopus::validateGenerationOptions(options);
+  validation = octopus::llm::validateGenerationOptions(options);
   CHECK_FALSE(validation.ok);
   CHECK(validation.error.find("frequency_penalty") != std::string::npos);
 
   options.frequency_penalty = 0.0F;
   options.presence_penalty = -0.1F;
-  validation = octopus::validateGenerationOptions(options);
+  validation = octopus::llm::validateGenerationOptions(options);
   CHECK_FALSE(validation.ok);
   CHECK(validation.error.find("presence_penalty") != std::string::npos);
 }
 
-TEST_CASE("ask request accepts selected model profile policy", "[ask]") {
-  octopus::CliOptions options;
-  options.mode = octopus::CliMode::Ask;
-  options.prompt = "Say hello";
-
-  auto profile = octopus::ModelProfile::gemmaInstruction();
-  profile.stop_strings = {"<custom-profile-stop>"};
-
-  const auto request = octopus::makeAskRequest(options, profile);
-
-  CHECK(request.model_profile.prompt_renderer ==
-        octopus::PromptRenderer::LlamaChatTemplate);
-  CHECK(request.model_profile.fallback_renderer ==
-        octopus::PromptFallback::GemmaInstruction);
-  REQUIRE(request.generation.stop_strings.size() == 1);
-  CHECK(request.generation.stop_strings[0] == "<custom-profile-stop>");
-}
-
 TEST_CASE("one-shot ask prints only successful completion text", "[ask]") {
-  octopus::CompletionResult completion;
-  completion.text = "Hello from the fake backend.";
-  completion.finish_reason = octopus::FinishReason::EndOfGeneration;
-  completion.generated_tokens = 6;
-  FakeBackend backend(completion);
-
+  RuntimeHarness harness(octopus::llm::InferenceResult::success(
+      {"Hello from the fake backend.",
+       octopus::llm::FinishReason::EndOfGeneration, 6}));
   octopus::CliOptions options;
   options.mode = octopus::CliMode::Ask;
   options.prompt = "Say hello";
 
   std::ostringstream out;
   std::ostringstream err;
-  const auto result = octopus::runOneShotAsk(options, backend, out, err);
+  const auto result =
+      octopus::runOneShotAsk(options, harness.runtime, out, err);
 
   CHECK(result.exit_code == 0);
-  CHECK(backend.calls == 1);
-  CHECK(backend.last_request.model_profile.prompt_renderer ==
-        octopus::PromptRenderer::LlamaChatTemplate);
-  CHECK(backend.last_request.model_profile.fallback_renderer ==
-        octopus::PromptFallback::GemmaInstruction);
-  REQUIRE(backend.last_request.generation.stop_strings.size() == 1);
-  CHECK(backend.last_request.generation.stop_strings[0] == "<end_of_turn>");
-  CHECK(backend.last_request.conversation.messages.back().content ==
+  CHECK(harness.compiler.calls == 1);
+  CHECK(harness.backend.calls == 1);
+  CHECK(harness.compiler.last_conversation.messages.back().content ==
         "Say hello");
+  CHECK(harness.backend.last_prompt.text == "compiled");
+  CHECK(harness.backend.last_generation.repeat_last_n == 64);
   CHECK(out.str() == "Hello from the fake backend.\n");
   CHECK(err.str().empty());
 }
 
 TEST_CASE("one-shot ask treats loop detection as a successful completion",
           "[ask]") {
-  octopus::CompletionResult completion;
-  completion.text = "Useful prefix.";
-  completion.finish_reason = octopus::FinishReason::LoopDetected;
-  completion.generated_tokens = 12;
-  FakeBackend backend(completion);
-
+  RuntimeHarness harness(octopus::llm::InferenceResult::success(
+      {"Useful prefix.", octopus::llm::FinishReason::LoopDetected, 12}));
   octopus::CliOptions options;
   options.mode = octopus::CliMode::Ask;
   options.prompt = "Say hello";
 
   std::ostringstream out;
   std::ostringstream err;
-  const auto result = octopus::runOneShotAsk(options, backend, out, err);
+  const auto result =
+      octopus::runOneShotAsk(options, harness.runtime, out, err);
 
   CHECK(result.exit_code == 0);
-  CHECK(backend.calls == 1);
+  CHECK(harness.backend.calls == 1);
   CHECK(out.str() == "Useful prefix.\n");
   CHECK(err.str().empty());
 }
 
 TEST_CASE("one-shot ask reports backend errors on stderr", "[ask]") {
-  octopus::CompletionResult completion;
-  completion.finish_reason = octopus::FinishReason::BackendError;
-  completion.error = "model failed";
-  FakeBackend backend(completion);
-
+  RuntimeHarness harness(
+      octopus::llm::InferenceResult::failure("model failed"));
   octopus::CliOptions options;
   options.mode = octopus::CliMode::Ask;
   options.prompt = "Say hello";
 
   std::ostringstream out;
   std::ostringstream err;
-  const auto result = octopus::runOneShotAsk(options, backend, out, err);
+  const auto result =
+      octopus::runOneShotAsk(options, harness.runtime, out, err);
 
   CHECK(result.exit_code == 1);
   CHECK(out.str().empty());

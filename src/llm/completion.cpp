@@ -1,11 +1,11 @@
-#include "octopus/inference/harness/completion.hpp"
+#include "octopus/llm/completion.hpp"
 
 #include <algorithm>
 #include <cstddef>
 #include <limits>
 #include <utility>
 
-namespace octopus {
+namespace octopus::llm {
 namespace {
 
 // Keep loop detection bounded and conservative. The detector should catch
@@ -256,4 +256,4 @@ std::size_t LoopDetector::trimSize() const noexcept {
   return detected_ ? trim_size_ : generated_size_;
 }
 
-}  // namespace octopus
+}  // namespace octopus::llm

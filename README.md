@@ -11,10 +11,12 @@ Current capabilities include:
 - one-shot `ask` mode;
 - interactive multiline editing, cursor and word movement, deletion, paste,
   Ctrl+C cancellation, and Ctrl+D exit;
-- explicit prompt/model-profile policy with GGUF chat-template support and a
-  Gemma fallback;
-- testable inference and CLI boundaries that do not require a model in unit
-  tests.
+- a model-neutral runtime contract for prompt compilation, capabilities,
+  inference, and assistant-response parsing;
+- an explicitly composed Google Gemma integration with GGUF chat-template
+  preference and a manual fallback;
+- testable runtime, model-integration, inference, and CLI boundaries that do
+  not require a model in unit tests.
 
 Tools, persistence, runtime backend selection, configuration loading, and a
 daemon are not implemented yet.

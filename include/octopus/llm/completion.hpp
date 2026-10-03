@@ -5,10 +5,8 @@
 #include <string_view>
 #include <vector>
 
-namespace octopus {
+namespace octopus::llm {
 
-// Accumulates decoded token pieces and stops when the visible text ends with a
-// configured boundary. It trims the boundary so users do not see model syntax.
 class StopDetector {
  public:
   explicit StopDetector(std::vector<std::string> stop_strings);
@@ -24,9 +22,6 @@ class StopDetector {
   std::string text_;
 };
 
-// Releases streamed text only after it can no longer be part of a stop marker.
-// This lets a backend print chunks on demand without exposing partial protocol
-// delimiters such as "<end_of_turn>".
 class StopSafeTextBuffer {
  public:
   explicit StopSafeTextBuffer(std::vector<std::string> stop_strings);
@@ -40,8 +35,6 @@ class StopSafeTextBuffer {
   std::string buffer_;
 };
 
-// Detects a small set of obvious repetition failures. This is not "AI quality"
-// scoring; it is a practical safety net for raw decoding loops.
 class LoopDetector {
  public:
   bool append(std::string_view chunk);
@@ -61,4 +54,4 @@ class LoopDetector {
   bool detected_ = false;
 };
 
-}  // namespace octopus
+}  // namespace octopus::llm

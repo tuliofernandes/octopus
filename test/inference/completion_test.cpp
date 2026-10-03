@@ -1,10 +1,10 @@
-#include "octopus/inference/harness/completion.hpp"
+#include "octopus/llm/completion.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
 TEST_CASE("stop detector removes stop completed across chunks",
           "[completion]") {
-  octopus::StopDetector detector({"<end_of_turn>"});
+  octopus::llm::StopDetector detector({"<end_of_turn>"});
 
   CHECK_FALSE(detector.append("hello <end"));
   CHECK(detector.text() == "hello <end");
@@ -18,7 +18,7 @@ TEST_CASE("stop detector removes stop completed across chunks",
 
 TEST_CASE("stop detector retains partial stop prefixes until resolved",
           "[completion]") {
-  octopus::StopDetector detector({"<end_of_turn>"});
+  octopus::llm::StopDetector detector({"<end_of_turn>"});
 
   CHECK_FALSE(detector.append("alpha <end"));
   CHECK(detector.text() == "alpha <end");
@@ -28,7 +28,7 @@ TEST_CASE("stop detector retains partial stop prefixes until resolved",
 }
 
 TEST_CASE("stop detector ignores empty stop strings", "[completion]") {
-  octopus::StopDetector detector({"", "<stop>"});
+  octopus::llm::StopDetector detector({"", "<stop>"});
 
   CHECK_FALSE(detector.append("answer"));
   CHECK(detector.text() == "answer");
@@ -38,7 +38,7 @@ TEST_CASE("stop detector ignores empty stop strings", "[completion]") {
 }
 
 TEST_CASE("stop detector deduplicates stop strings", "[completion]") {
-  octopus::StopDetector detector({"<stop>", "", "<stop>", "<other>"});
+  octopus::llm::StopDetector detector({"<stop>", "", "<stop>", "<other>"});
 
   REQUIRE(detector.stopStrings().size() == 2);
   CHECK(detector.stopStrings()[0] == "<stop>");
@@ -47,7 +47,7 @@ TEST_CASE("stop detector deduplicates stop strings", "[completion]") {
 
 TEST_CASE("stop-safe text buffer holds possible stop suffixes",
           "[completion]") {
-  octopus::StopSafeTextBuffer buffer({"<stop>"});
+  octopus::llm::StopSafeTextBuffer buffer({"<stop>"});
 
   CHECK(buffer.append("abcd") == "");
   CHECK(buffer.append("ef") == "a");
@@ -55,7 +55,7 @@ TEST_CASE("stop-safe text buffer holds possible stop suffixes",
 }
 
 TEST_CASE("stop-safe text buffer does not flush stop markers", "[completion]") {
-  octopus::StopSafeTextBuffer buffer({"<stop>"});
+  octopus::llm::StopSafeTextBuffer buffer({"<stop>"});
 
   std::string visible;
   visible += buffer.append("answer<st");
@@ -66,7 +66,7 @@ TEST_CASE("stop-safe text buffer does not flush stop markers", "[completion]") {
 
 TEST_CASE("stop-safe text buffer streams immediately without stops",
           "[completion]") {
-  octopus::StopSafeTextBuffer buffer({});
+  octopus::llm::StopSafeTextBuffer buffer({});
 
   CHECK(buffer.append("alpha") == "alpha");
   CHECK(buffer.append(" beta") == " beta");
@@ -75,7 +75,7 @@ TEST_CASE("stop-safe text buffer streams immediately without stops",
 
 TEST_CASE("loop detector catches repeated identical short lines",
           "[completion]") {
-  octopus::LoopDetector detector;
+  octopus::llm::LoopDetector detector;
 
   CHECK_FALSE(detector.append("ready\n"));
   CHECK_FALSE(detector.append("ready\n"));
@@ -87,7 +87,7 @@ TEST_CASE("loop detector catches repeated identical short lines",
 
 TEST_CASE("loop detector catches repeated n-gram windows conservatively",
           "[completion]") {
-  octopus::LoopDetector detector;
+  octopus::llm::LoopDetector detector;
 
   CHECK_FALSE(detector.append("alpha beta gamma "));
   CHECK_FALSE(detector.append("alpha beta gamma "));
@@ -98,7 +98,7 @@ TEST_CASE("loop detector catches repeated n-gram windows conservatively",
 }
 
 TEST_CASE("loop detector ignores normal short answers", "[completion]") {
-  octopus::LoopDetector detector;
+  octopus::llm::LoopDetector detector;
 
   CHECK_FALSE(detector.append("Ready."));
   CHECK_FALSE(detector.append(" The command completed successfully."));

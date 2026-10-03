@@ -1,7 +1,7 @@
 #pragma once
 
 #include "octopus/cli/cli.hpp"
-#include "octopus/inference/harness/llm.hpp"
+#include "octopus/llm/runtime.hpp"
 
 #include <iosfwd>
 
@@ -11,26 +11,20 @@ namespace octopus {
 // ask.
 struct AskRunResult {
   int exit_code = 0;
-  CompletionResult completion;
+  llm::CompletionResult completion;
 };
 
 // Build the generic harness request for an accumulated CLI conversation. The
-// overload with a profile is mainly for tests and future model selection.
-CompletionRequest makeConversationRequest(const CliOptions& options,
-                                          const Conversation& conversation);
-CompletionRequest makeConversationRequest(const CliOptions& options,
-                                          const Conversation& conversation,
-                                          const ModelProfile& profile);
+// active model integration is selected only by the application composition.
+llm::CompletionRequest makeConversationRequest(
+    const CliOptions& options, const llm::Conversation& conversation);
 
-// Build the generic harness request for CLI ask mode. The overload with a
-// profile is mainly for tests and future model selection.
-CompletionRequest makeAskRequest(const CliOptions& options);
-CompletionRequest makeAskRequest(const CliOptions& options,
-                                 const ModelProfile& profile);
+// Build the model-neutral request for CLI ask mode.
+llm::CompletionRequest makeAskRequest(const CliOptions& options);
 
 // Execute one ask request and print only the assistant-facing text. Backend
 // details stay inside CompletionResult/error handling.
-AskRunResult runOneShotAsk(const CliOptions& options, LlmBackend& backend,
+AskRunResult runOneShotAsk(const CliOptions& options, llm::Runtime& runtime,
                            std::ostream& out, std::ostream& err);
 
 }  // namespace octopus

@@ -1,11 +1,12 @@
 #pragma once
 
-#include "octopus/inference/harness/llm.hpp"
+#include "octopus/llm/contracts.hpp"
 
 #include <memory>
 #include <string>
+#include <vector>
 
-namespace octopus {
+namespace octopus::inference {
 
 // Runtime knobs needed to load the local llama.cpp model. These are
 // deliberately not exposed as general CLI flags yet; the harness owns the
@@ -16,25 +17,29 @@ struct LlamaCppBackendOptions {
   bool quiet = true;
 };
 
-// Concrete adapter from the generic LlmBackend contract to llama.cpp. The
-// public type stays small; Impl owns the native resources and API details.
-class LlamaCppBackend final : public LlmBackend {
+// Concrete execution and metadata-template adapter for llama.cpp. The public
+// type stays small; Impl owns the native resources and API details.
+class LlamaCppBackend final : public llm::InferenceBackend,
+                              public llm::ChatTemplateEngine {
  public:
   explicit LlamaCppBackend(LlamaCppBackendOptions options);
   ~LlamaCppBackend() override;
 
   LlamaCppBackend(const LlamaCppBackend&) = delete;
   LlamaCppBackend& operator=(const LlamaCppBackend&) = delete;
-  LlamaCppBackend(LlamaCppBackend&&) noexcept;
-  LlamaCppBackend& operator=(LlamaCppBackend&&) noexcept;
+  LlamaCppBackend(LlamaCppBackend&&) = delete;
+  LlamaCppBackend& operator=(LlamaCppBackend&&) = delete;
 
-  CompletionResult complete(const CompletionRequest& request) override;
-  CompletionResult completeStreaming(const CompletionRequest& request,
-                                     CompletionSink& sink) override;
+  llm::InferenceResult generate(const llm::CompiledPrompt& prompt,
+                                const llm::GenerationOptions& generation,
+                                const llm::CancellationToken* cancellation,
+                                llm::CompletionSink* sink) override;
+  llm::TemplateRenderResult render(
+      const std::vector<llm::TemplateMessage>& messages) const override;
 
  private:
   struct Impl;
   std::unique_ptr<Impl> impl_;
 };
 
-}  // namespace octopus
+}  // namespace octopus::inference
