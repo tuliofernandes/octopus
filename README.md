@@ -23,14 +23,58 @@ daemon are not implemented yet.
 
 ## Prerequisites
 
-- Conan 2 or newer
-- CMake 3.25 or newer
-- Ninja
-- A C++17 compiler
-- `clang-format` for the optional `format-check` target
+Octopus requires Python 3 with virtual-environment support, CMake 3.25 or
+newer, Ninja, Git, and a C++17 toolchain. `clang-format` is optional and only
+needed for the `format-check` target.
 
-Catch2 3.7.1 is resolved through Conan. llama.cpp is fetched by CMake at the
-revision pinned in `CMakeLists.txt`.
+Install them on a current release of your distribution with one of these
+commands:
+
+### Debian and Ubuntu
+
+```bash
+sudo apt update
+sudo apt install build-essential cmake ninja-build git python3 python3-venv clang-format
+```
+
+Ubuntu 22.04 ships a CMake version older than 3.25. Use a newer Ubuntu release
+or install a current CMake separately.
+
+### Fedora
+
+```bash
+sudo dnf install gcc gcc-c++ cmake ninja-build git python3 clang-tools-extra
+```
+
+### Arch Linux
+
+```bash
+sudo pacman -S --needed base-devel cmake ninja git python clang
+```
+
+### openSUSE
+
+```bash
+sudo zypper install gcc gcc-c++ cmake ninja git python3 python3-pip clang-tools
+```
+
+### AMD ROCm/HIP build
+
+The `local-amd-hip-debug` preset additionally requires the HIP compiler and
+HIP/BLAS development libraries. On Fedora, install the packages used by the
+verified local build with:
+
+```bash
+sudo dnf install hipcc rocm-hip rocm-hip-devel hipblas-devel rocblas-devel
+```
+
+ROCm packaging and supported GPU/distribution combinations differ across
+distributions. For non-Fedora systems, install the equivalent HIP SDK and
+development libraries from your distribution or AMD before using that preset.
+
+The setup below installs the pinned Conan 2 release in a project-local
+`.venv`. Catch2 3.7.1 is then resolved through Conan. llama.cpp is fetched by
+CMake at the revision pinned in `CMakeLists.txt`.
 
 ## Model
 
@@ -50,6 +94,8 @@ hf download ggml-org/gemma-3-1b-it-GGUF --local-dir ./models
 
 ```bash
 git submodule update --init --recursive
+python3 -m venv .venv
+./.venv/bin/python -m pip install -r requirements-build.txt
 cmake --preset=ci-ninja-debug
 cmake --build ./build
 ```

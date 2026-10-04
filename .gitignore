@@ -34,5 +34,6 @@
 build/*
 .cache
 .conan2/
+.venv/
 models/*
 .vscode/*
