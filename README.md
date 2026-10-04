@@ -91,6 +91,12 @@ the local AMD HIP configuration.
 | `gemma` | `./models/gemma-3-1b-it-Q4_K_M.gguf` | Default and compatibility option |
 | `qwen35` | `./models/Qwen3.5-4B-Q4_K_M.gguf` | Selectable; HIP verified, CPU short requests operational |
 
+Developer-facing integration contracts and the required per-model README
+format live under [`src/models`](src/models/README.md). See the
+[`Qwen3.5`](src/models/alibaba/qwen3_5/README.md) and
+[`Gemma`](src/models/google/gemma/README.md) notes for template, capability,
+flag, fallback, and verification details.
+
 Download the exact approved Qwen3.5 artifact with:
 
 ```bash
