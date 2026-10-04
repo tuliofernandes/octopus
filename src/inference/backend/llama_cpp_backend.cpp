@@ -202,11 +202,15 @@ struct LlamaCppBackend::Impl {
     }
     model.reset(
         llama_model_load_from_file(options.model_path.c_str(), model_params));
-    if (model != nullptr &&
-        llama_model_chat_template(model.get(), nullptr) == nullptr) {
-      template_initialization_error =
-          "model chat template metadata is unavailable";
-    } else if (model != nullptr) {
+    if (model != nullptr) {
+      const char* chat_template =
+          llama_model_chat_template(model.get(), nullptr);
+      if (chat_template == nullptr || chat_template[0] == '\0') {
+        template_initialization_error =
+            "model chat template metadata is unavailable or empty";
+        return;
+      }
+
       try {
         chat_templates = common_chat_templates_init(model.get(), "");
       } catch (const std::exception& error) {

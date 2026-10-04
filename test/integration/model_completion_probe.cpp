@@ -90,18 +90,18 @@ int runProbe(const std::string& model_path, int gpu_layers,
       std::chrono::duration<double, std::milli>(first_text - started).count();
   const double elapsed_ms =
       std::chrono::duration<double, std::milli>(finished - started).count();
-  const double decode_seconds =
-      std::chrono::duration<double>(finished - first_text).count();
-  const int decode_tokens = completion.value().generated_tokens > 1
-                                ? completion.value().generated_tokens - 1
-                                : completion.value().generated_tokens;
-  const double decode_rate =
-      decode_seconds > 0.0 ? decode_tokens / decode_seconds : 0.0;
+  const double elapsed_seconds =
+      std::chrono::duration<double>(finished - started).count();
+  const double completion_rate =
+      elapsed_seconds > 0.0
+          ? completion.value().generated_tokens / elapsed_seconds
+          : 0.0;
 
   std::cerr << std::fixed << std::setprecision(2) << "metrics generated_tokens="
             << completion.value().generated_tokens << " ttft_ms=" << ttft_ms
             << " elapsed_ms=" << elapsed_ms
-            << " decode_tokens_per_second=" << decode_rate << " finish_reason="
+            << " completion_tokens_per_second=" << completion_rate
+            << " finish_reason="
             << finishReasonName(completion.value().finish_reason) << '\n';
   return 0;
 }
