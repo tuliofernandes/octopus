@@ -16,6 +16,7 @@ set(OCTOPUS_FORMAT_SOURCES
         include/octopus/cli/cli.hpp
         include/octopus/cli/input_editor.hpp
         include/octopus/cli/terminal_input.hpp
+        include/octopus/cli/terminal_renderer.hpp
         include/octopus/inference/backend/llama_cpp_backend.hpp
         include/octopus/llm/completion.hpp
         include/octopus/llm/contracts.hpp
@@ -24,6 +25,8 @@ set(OCTOPUS_FORMAT_SOURCES
         src/cli/cli.cpp
         src/cli/input/input_editor.cpp
         src/cli/input/terminal_input.cpp
+        src/cli/terminal/terminal_renderer.cpp
+        src/cli/terminal/text.cpp
         src/cli/modes/ask.cpp
         src/cli/modes/chat.cpp
         src/inference/backend/llama_cpp_backend.cpp
@@ -39,6 +42,7 @@ set(OCTOPUS_FORMAT_SOURCES
         test/cli/cli_test.cpp
         test/cli/input_editor_test.cpp
         test/cli/terminal_input_test.cpp
+        test/cli/terminal_renderer_test.cpp
         test/inference/completion_test.cpp
         test/integration/model_completion_probe.cpp
         test/integration/model_template_probe.cpp
@@ -58,6 +62,7 @@ endif()
 
 # find Catch2 - if configured Conan2 will be used as dependency provider
 find_package(Catch2 REQUIRED)
+find_package(md4c REQUIRED CONFIG)
 include(FetchContent)
 FetchContent_Declare(
         llama
@@ -87,10 +92,13 @@ add_library(octopus_cli_modes STATIC
         src/cli/modes/ask.cpp
         src/cli/modes/chat.cpp
         src/cli/input/input_editor.cpp
-        src/cli/input/terminal_input.cpp)
-target_include_directories(octopus_cli_modes PUBLIC include)
+        src/cli/input/terminal_input.cpp
+        src/cli/terminal/terminal_renderer.cpp
+        src/cli/terminal/text.cpp)
+target_include_directories(octopus_cli_modes PUBLIC include PRIVATE src)
 target_compile_features(octopus_cli_modes PUBLIC cxx_std_17)
-target_link_libraries(octopus_cli_modes PUBLIC octopus_cli octopus_llm)
+target_link_libraries(octopus_cli_modes PUBLIC octopus_cli octopus_llm
+        PRIVATE md4c::md4c)
 target_compile_options(octopus_cli_modes PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 add_library(octopus_model_google_gemma STATIC

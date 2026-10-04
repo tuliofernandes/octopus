@@ -1,10 +1,14 @@
 #include "octopus/cli/terminal_input.hpp"
 
+#include "octopus/cli/terminal_renderer.hpp"
+
+#include "cli/terminal/text.hpp"
+
+#include <algorithm>
 #include <cerrno>
 #include <cctype>
-#include <cstdlib>
-#include <iostream>
 #include <istream>
+#include <limits>
 #include <ostream>
 #include <string>
 
@@ -20,8 +24,6 @@ constexpr char kCtrlD = '\x04';
 constexpr char kCtrlW = '\x17';
 constexpr char kBackspace = '\x08';
 constexpr char kDelete = '\x7f';
-constexpr std::string_view kQuietUserTextStyle = "\x1b[2m";
-constexpr std::string_view kResetStyle = "\x1b[0m";
 bool endsWithContinuation(const std::string& line) {
   return !line.empty() && line.back() == '\\';
 }
@@ -31,21 +33,6 @@ void appendLine(std::string& pending, const std::string& line) {
     pending.push_back('\n');
   }
   pending += line;
-}
-
-bool isInteractiveTerminal(const std::istream& in, const std::ostream& out) {
-  return &in == &std::cin && &out == &std::cout && isatty(STDIN_FILENO) != 0 &&
-         isatty(STDOUT_FILENO) != 0;
-}
-
-bool hasNoColorEnvironment() { return std::getenv("NO_COLOR") != nullptr; }
-
-std::string environmentValue(const char* name) {
-  const char* value = std::getenv(name);
-  if (value == nullptr) {
-    return "";
-  }
-  return value;
 }
 
 class ScopedRawTerminal final {
@@ -89,62 +76,21 @@ class ScopedBracketedPaste final {
   ScopedBracketedPaste(const ScopedBracketedPaste&) = delete;
   ScopedBracketedPaste& operator=(const ScopedBracketedPaste&) = delete;
 
-  ~ScopedBracketedPaste() {
-    out_ << "\x1b[?2004l";
-    out_.flush();
+  ~ScopedBracketedPaste() noexcept {
+    try {
+      out_ << "\x1b[?2004l";
+      out_.flush();
+    } catch (...) {
+    }
   }
 
  private:
   std::ostream& out_;
 };
 
-struct ScreenPosition {
-  std::size_t row = 0;
-  std::size_t column = 0;
-};
-
-struct RenderMetrics {
-  std::size_t rows = 1;
-  ScreenPosition cursor;
-  ScreenPosition end;
-};
-
-void advancePosition(ScreenPosition& position, char byte,
-                     std::string_view continuation_prompt) {
-  if (byte == '\n') {
-    ++position.row;
-    position.column = continuation_prompt.size();
-    return;
-  }
-  ++position.column;
-}
-
-RenderMetrics measureInput(std::string_view prompt,
-                           std::string_view continuation_prompt,
-                           const TerminalLineEditor& editor) {
-  RenderMetrics metrics;
-  ScreenPosition position{0, prompt.size()};
-  const auto& line = editor.currentLine();
-
-  for (std::size_t index = 0; index < line.size(); ++index) {
-    if (index == editor.cursor()) {
-      metrics.cursor = position;
-    }
-    advancePosition(position, line[index], continuation_prompt);
-  }
-  if (editor.cursor() == line.size()) {
-    metrics.cursor = position;
-  }
-  metrics.end = position;
-  metrics.rows = position.row + 1;
-  return metrics;
-}
-
-void writeStyledInput(std::ostream& out, std::string_view prompt,
-                      std::string_view continuation_prompt,
-                      const TerminalLineEditor& editor,
-                      const TerminalStylePolicy& style) {
-  out << style.user_start;
+void writeInput(std::ostream& out, std::string_view prompt,
+                std::string_view continuation_prompt,
+                const TerminalLineEditor& editor) {
   out << prompt;
   const auto& line = editor.currentLine();
   for (const char byte : line) {
@@ -154,24 +100,27 @@ void writeStyledInput(std::ostream& out, std::string_view prompt,
     }
     out << byte;
   }
-  out << style.user_end;
 }
 
-std::size_t redrawInput(std::ostream& out, std::string_view prompt,
-                        std::string_view continuation_prompt,
-                        const TerminalLineEditor& editor,
-                        std::size_t previous_rows,
-                        const TerminalStylePolicy& style) {
-  if (previous_rows > 1) {
-    out << "\r\x1b[" << (previous_rows - 1) << "A";
+TerminalInputMetrics redrawInput(std::ostream& out, std::string_view prompt,
+                                 std::string_view continuation_prompt,
+                                 const TerminalLineEditor& editor,
+                                 TerminalInputMetrics previous_metrics) {
+  if (previous_metrics.cursor.row > 0) {
+    out << "\r\x1b[" << previous_metrics.cursor.row << "A";
   } else {
     out << '\r';
   }
 
   out << "\x1b[J";
-  writeStyledInput(out, prompt, continuation_prompt, editor, style);
+  writeInput(out, prompt, continuation_prompt, editor);
 
-  const auto metrics = measureInput(prompt, continuation_prompt, editor);
+  const std::size_t columns =
+      queryTerminalWidth(STDOUT_FILENO)
+          .value_or(std::numeric_limits<std::size_t>::max());
+  const auto metrics =
+      measureTerminalInput(prompt, continuation_prompt, editor.currentLine(),
+                           editor.cursor(), columns);
   if (metrics.end.row > metrics.cursor.row) {
     out << "\x1b[" << (metrics.end.row - metrics.cursor.row) << "A";
   }
@@ -180,7 +129,7 @@ std::size_t redrawInput(std::ostream& out, std::string_view prompt,
     out << "\x1b[" << metrics.cursor.column << "C";
   }
   out.flush();
-  return metrics.rows;
+  return metrics;
 }
 
 TerminalReadResult readCookedInput(std::istream& in, std::ostream& out,
@@ -209,8 +158,7 @@ TerminalReadResult readCookedInput(std::istream& in, std::ostream& out,
 }
 
 TerminalReadResult readRawInput(std::ostream& out, std::string_view prompt,
-                                std::string_view continuation_prompt,
-                                const TerminalStylePolicy& style) {
+                                std::string_view continuation_prompt) {
   ScopedRawTerminal terminal(STDIN_FILENO);
   if (!terminal.active()) {
     return {TerminalReadStatus::EndOfFile, ""};
@@ -218,22 +166,27 @@ TerminalReadResult readRawInput(std::ostream& out, std::string_view prompt,
 
   ScopedBracketedPaste bracketed_paste(out);
   TerminalLineEditor editor;
-  std::size_t rendered_rows = 1;
-  out << style.user_start << prompt << style.user_end;
+  const std::size_t initial_columns =
+      queryTerminalWidth(STDOUT_FILENO)
+          .value_or(std::numeric_limits<std::size_t>::max());
+  TerminalInputMetrics rendered =
+      measureTerminalInput(prompt, continuation_prompt, editor.currentLine(),
+                           editor.cursor(), initial_columns);
+  out << prompt;
   out.flush();
 
   while (true) {
     char byte = '\0';
     const ssize_t read_count = read(STDIN_FILENO, &byte, 1);
     if (read_count == 0) {
-      out << style.user_end << '\n';
+      out << '\n';
       return {TerminalReadStatus::EndOfFile, ""};
     }
     if (read_count < 0) {
       if (errno == EINTR) {
         continue;
       }
-      out << style.user_end << '\n';
+      out << '\n';
       return {TerminalReadStatus::EndOfFile, ""};
     }
 
@@ -241,13 +194,13 @@ TerminalReadResult readRawInput(std::ostream& out, std::string_view prompt,
     const auto event = editor.feed(byte);
     switch (event.type) {
       case TerminalInputEventType::Submitted:
-        out << style.user_end << '\n';
+        out << '\n';
         return {TerminalReadStatus::Submitted, event.text};
       case TerminalInputEventType::EndOfFile:
-        out << style.user_end << '\n';
+        out << '\n';
         return {TerminalReadStatus::EndOfFile, ""};
       case TerminalInputEventType::Cancelled:
-        out << style.user_end << "^C\n";
+        out << "^C\n";
         return {TerminalReadStatus::Cancelled, ""};
       case TerminalInputEventType::None:
         break;
@@ -255,8 +208,8 @@ TerminalReadResult readRawInput(std::ostream& out, std::string_view prompt,
 
     if (was_pasting || editor.isPasting()) {
       if (was_pasting && !editor.isPasting()) {
-        rendered_rows = redrawInput(out, prompt, continuation_prompt, editor,
-                                    rendered_rows, style);
+        rendered =
+            redrawInput(out, prompt, continuation_prompt, editor, rendered);
       }
       continue;
     }
@@ -265,21 +218,11 @@ TerminalReadResult readRawInput(std::ostream& out, std::string_view prompt,
       continue;
     }
 
-    rendered_rows = redrawInput(out, prompt, continuation_prompt, editor,
-                                rendered_rows, style);
+    rendered = redrawInput(out, prompt, continuation_prompt, editor, rendered);
   }
 }
 
 }  // namespace
-
-TerminalStylePolicy makeTerminalStylePolicy(bool is_interactive_tty,
-                                            bool no_color,
-                                            std::string_view term) noexcept {
-  if (!is_interactive_tty || no_color || term == "dumb") {
-    return {};
-  }
-  return {kQuietUserTextStyle, kResetStyle};
-}
 
 TerminalInputEvent TerminalLineEditor::feed(char byte) {
   const unsigned char unsigned_byte = static_cast<unsigned char>(byte);
@@ -354,6 +297,23 @@ TerminalInputEvent TerminalLineEditor::feed(char byte) {
       break;
   }
 
+  if (!utf8_pending_.empty()) {
+    if ((unsigned_byte & 0xC0U) == 0x80U) {
+      utf8_pending_.push_back(byte);
+      if (utf8_pending_.size() == utf8_expected_) {
+        const auto decoded = cli_detail::decodeCodePoint(utf8_pending_, 0);
+        if (decoded.valid && decoded.bytes == utf8_pending_.size()) {
+          insertText(utf8_pending_);
+        }
+        utf8_pending_.clear();
+        utf8_expected_ = 0;
+      }
+      return {};
+    }
+    utf8_pending_.clear();
+    utf8_expected_ = 0;
+  }
+
   if (byte == kEscape) {
     escape_state_ = EscapeState::Escape;
     return {};
@@ -361,6 +321,8 @@ TerminalInputEvent TerminalLineEditor::feed(char byte) {
   if (byte == kCtrlC) {
     line_.clear();
     pending_.clear();
+    utf8_pending_.clear();
+    utf8_expected_ = 0;
     cursor_ = 0;
     return {TerminalInputEventType::Cancelled, ""};
   }
@@ -378,7 +340,11 @@ TerminalInputEvent TerminalLineEditor::feed(char byte) {
     return handleEnter();
   }
   if (paste_mode_) {
-    insertPrintable(byte);
+    if (byte == '\t' || (unsigned_byte >= 0x20U && unsigned_byte < 0x7FU)) {
+      insertPrintable(byte);
+    } else if (unsigned_byte >= 0x80U) {
+      acceptUtf8Byte(byte);
+    }
     return {};
   }
   if (byte == kCtrlW) {
@@ -391,12 +357,16 @@ TerminalInputEvent TerminalLineEditor::feed(char byte) {
   }
   if (std::isprint(unsigned_byte) != 0 && unsigned_byte < 128) {
     insertPrintable(byte);
+  } else if (unsigned_byte >= 0x80U) {
+    acceptUtf8Byte(byte);
   }
 
   return {};
 }
 
 TerminalInputEvent TerminalLineEditor::handleEnter() {
+  utf8_pending_.clear();
+  utf8_expected_ = 0;
   if (endsWithContinuation(line_)) {
     line_.pop_back();
     appendLine(pending_, line_);
@@ -489,43 +459,85 @@ void TerminalLineEditor::insertPrintable(char byte) {
   ++cursor_;
 }
 
+void TerminalLineEditor::insertText(std::string_view text) {
+  line_.insert(cursor_, text);
+  cursor_ += text.size();
+}
+
+void TerminalLineEditor::acceptUtf8Byte(char byte) {
+  const auto first = static_cast<unsigned char>(byte);
+  if (first >= 0xC2U && first <= 0xDFU) {
+    utf8_expected_ = 2;
+  } else if (first >= 0xE0U && first <= 0xEFU) {
+    utf8_expected_ = 3;
+  } else if (first >= 0xF0U && first <= 0xF4U) {
+    utf8_expected_ = 4;
+  } else {
+    return;
+  }
+  utf8_pending_.assign(1, byte);
+}
+
 void TerminalLineEditor::backspace() {
   if (cursor_ == 0) {
     return;
   }
-  line_.erase(line_.begin() + static_cast<std::ptrdiff_t>(cursor_ - 1));
-  --cursor_;
+  const std::size_t previous =
+      cli_detail::previousCodePointBoundary(line_, cursor_);
+  line_.erase(previous, cursor_ - previous);
+  cursor_ = previous;
 }
 
 void TerminalLineEditor::deleteAtCursor() {
   if (cursor_ >= line_.size()) {
     return;
   }
-  line_.erase(line_.begin() + static_cast<std::ptrdiff_t>(cursor_));
+  const std::size_t next = cli_detail::nextCodePointBoundary(line_, cursor_);
+  line_.erase(cursor_, next - cursor_);
 }
 
 void TerminalLineEditor::deleteWordLeft() {
   const std::size_t original_cursor = cursor_;
-  while (cursor_ > 0 &&
-         std::isspace(static_cast<unsigned char>(line_[cursor_ - 1])) != 0) {
-    --cursor_;
+  while (cursor_ > 0) {
+    const std::size_t previous =
+        cli_detail::previousCodePointBoundary(line_, cursor_);
+    const auto decoded = cli_detail::decodeCodePoint(line_, previous);
+    if (!decoded.valid || decoded.value > 0x7FU ||
+        std::isspace(static_cast<unsigned char>(decoded.value)) == 0) {
+      break;
+    }
+    cursor_ = previous;
   }
-  while (cursor_ > 0 &&
-         std::isspace(static_cast<unsigned char>(line_[cursor_ - 1])) == 0) {
-    --cursor_;
+  while (cursor_ > 0) {
+    const std::size_t previous =
+        cli_detail::previousCodePointBoundary(line_, cursor_);
+    const auto decoded = cli_detail::decodeCodePoint(line_, previous);
+    if (decoded.valid && decoded.value <= 0x7FU &&
+        std::isspace(static_cast<unsigned char>(decoded.value)) != 0) {
+      break;
+    }
+    cursor_ = previous;
   }
   line_.erase(cursor_, original_cursor - cursor_);
 }
 
 void TerminalLineEditor::deleteWordRight() {
   std::size_t end = cursor_;
-  while (end < line_.size() &&
-         std::isspace(static_cast<unsigned char>(line_[end])) != 0) {
-    ++end;
+  while (end < line_.size()) {
+    const auto decoded = cli_detail::decodeCodePoint(line_, end);
+    if (!decoded.valid || decoded.value > 0x7FU ||
+        std::isspace(static_cast<unsigned char>(decoded.value)) == 0) {
+      break;
+    }
+    end = cli_detail::nextCodePointBoundary(line_, end);
   }
-  while (end < line_.size() &&
-         std::isspace(static_cast<unsigned char>(line_[end])) == 0) {
-    ++end;
+  while (end < line_.size()) {
+    const auto decoded = cli_detail::decodeCodePoint(line_, end);
+    if (decoded.valid && decoded.value <= 0x7FU &&
+        std::isspace(static_cast<unsigned char>(decoded.value)) != 0) {
+      break;
+    }
+    end = cli_detail::nextCodePointBoundary(line_, end);
   }
   line_.erase(cursor_, end - cursor_);
 }
@@ -537,35 +549,55 @@ void TerminalLineEditor::insertLineBreak() {
 
 void TerminalLineEditor::moveLeft() {
   if (cursor_ > 0) {
-    --cursor_;
+    cursor_ = cli_detail::previousCodePointBoundary(line_, cursor_);
   }
 }
 
 void TerminalLineEditor::moveRight() {
   if (cursor_ < line_.size()) {
-    ++cursor_;
+    cursor_ = cli_detail::nextCodePointBoundary(line_, cursor_);
   }
 }
 
 void TerminalLineEditor::moveWordLeft() {
-  while (cursor_ > 0 &&
-         std::isspace(static_cast<unsigned char>(line_[cursor_ - 1])) != 0) {
-    --cursor_;
+  while (cursor_ > 0) {
+    const std::size_t previous =
+        cli_detail::previousCodePointBoundary(line_, cursor_);
+    const auto decoded = cli_detail::decodeCodePoint(line_, previous);
+    if (!decoded.valid || decoded.value > 0x7FU ||
+        std::isspace(static_cast<unsigned char>(decoded.value)) == 0) {
+      break;
+    }
+    cursor_ = previous;
   }
-  while (cursor_ > 0 &&
-         std::isspace(static_cast<unsigned char>(line_[cursor_ - 1])) == 0) {
-    --cursor_;
+  while (cursor_ > 0) {
+    const std::size_t previous =
+        cli_detail::previousCodePointBoundary(line_, cursor_);
+    const auto decoded = cli_detail::decodeCodePoint(line_, previous);
+    if (decoded.valid && decoded.value <= 0x7FU &&
+        std::isspace(static_cast<unsigned char>(decoded.value)) != 0) {
+      break;
+    }
+    cursor_ = previous;
   }
 }
 
 void TerminalLineEditor::moveWordRight() {
-  while (cursor_ < line_.size() &&
-         std::isspace(static_cast<unsigned char>(line_[cursor_])) == 0) {
-    ++cursor_;
+  while (cursor_ < line_.size()) {
+    const auto decoded = cli_detail::decodeCodePoint(line_, cursor_);
+    if (decoded.valid && decoded.value <= 0x7FU &&
+        std::isspace(static_cast<unsigned char>(decoded.value)) != 0) {
+      break;
+    }
+    cursor_ = cli_detail::nextCodePointBoundary(line_, cursor_);
   }
-  while (cursor_ < line_.size() &&
-         std::isspace(static_cast<unsigned char>(line_[cursor_])) != 0) {
-    ++cursor_;
+  while (cursor_ < line_.size()) {
+    const auto decoded = cli_detail::decodeCodePoint(line_, cursor_);
+    if (!decoded.valid || decoded.value > 0x7FU ||
+        std::isspace(static_cast<unsigned char>(decoded.value)) == 0) {
+      break;
+    }
+    cursor_ = cli_detail::nextCodePointBoundary(line_, cursor_);
   }
 }
 
@@ -577,13 +609,79 @@ void TerminalLineEditor::resetEscape() noexcept {
 TerminalReadResult readTerminalInput(std::istream& in, std::ostream& out,
                                      std::string_view prompt,
                                      std::string_view continuation_prompt) {
-  if (isInteractiveTerminal(in, out)) {
-    const std::string term = environmentValue("TERM");
-    const TerminalStylePolicy style =
-        makeTerminalStylePolicy(true, hasNoColorEnvironment(), term);
-    return readRawInput(out, prompt, continuation_prompt, style);
+  const TerminalCapabilities capabilities = detectTerminalCapabilities(in, out);
+  if (capabilities.cursor_control && capabilities.columns.has_value()) {
+    return readRawInput(out, prompt, continuation_prompt);
   }
   return readCookedInput(in, out, prompt);
+}
+
+TerminalInputMetrics measureTerminalInput(std::string_view prompt,
+                                          std::string_view continuation_prompt,
+                                          std::string_view line,
+                                          std::size_t cursor,
+                                          std::size_t columns) noexcept {
+  TerminalInputMetrics metrics;
+  TerminalScreenPosition position;
+  const std::size_t safe_columns = std::max<std::size_t>(columns, 1);
+
+  const auto advanceCells = [&](std::size_t cells,
+                                TerminalScreenPosition& target) {
+    while (cells > 0) {
+      if (target.column == safe_columns) {
+        ++target.row;
+        target.column = 0;
+      }
+      const std::size_t available = safe_columns - target.column;
+      const std::size_t advanced = std::min(cells, available);
+      target.column += advanced;
+      cells -= advanced;
+    }
+  };
+
+  for (std::size_t offset = 0; offset < prompt.size();) {
+    const auto decoded = cli_detail::decodeCodePoint(prompt, offset);
+    advanceCells(
+        decoded.valid ? cli_detail::terminalCellWidth(decoded.value) : 1,
+        position);
+    offset += decoded.valid ? decoded.bytes : 1;
+  }
+
+  const std::size_t safe_cursor = std::min(cursor, line.size());
+  for (std::size_t offset = 0; offset < line.size();) {
+    if (offset == safe_cursor) {
+      metrics.cursor = position;
+    }
+    const auto decoded = cli_detail::decodeCodePoint(line, offset);
+    if (decoded.valid && decoded.value == '\n') {
+      ++position.row;
+      position.column = 0;
+      for (std::size_t prompt_offset = 0;
+           prompt_offset < continuation_prompt.size();) {
+        const auto prompt_code_point =
+            cli_detail::decodeCodePoint(continuation_prompt, prompt_offset);
+        advanceCells(prompt_code_point.valid ? cli_detail::terminalCellWidth(
+                                                   prompt_code_point.value)
+                                             : 1,
+                     position);
+        prompt_offset += prompt_code_point.valid ? prompt_code_point.bytes : 1;
+      }
+    } else if (decoded.valid && decoded.value == '\t') {
+      const std::size_t tab_width = 8 - (position.column % 8);
+      advanceCells(tab_width, position);
+    } else {
+      advanceCells(
+          decoded.valid ? cli_detail::terminalCellWidth(decoded.value) : 1,
+          position);
+    }
+    offset += decoded.valid ? decoded.bytes : 1;
+  }
+  if (safe_cursor == line.size()) {
+    metrics.cursor = position;
+  }
+  metrics.end = position;
+  metrics.rows = position.row + 1;
+  return metrics;
 }
 
 }  // namespace octopus

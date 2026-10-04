@@ -3,6 +3,7 @@
 #include "octopus/cli/cli.hpp"
 #include "octopus/cli/input_editor.hpp"
 #include "octopus/cli/terminal_input.hpp"
+#include "octopus/cli/terminal_renderer.hpp"
 #include "octopus/inference/backend/llama_cpp_backend.hpp"
 #include "octopus/llm/completion.hpp"
 #include "octopus/llm/contracts.hpp"

@@ -1,6 +1,9 @@
 #include "octopus/cli/ask.hpp"
 
+#include "octopus/cli/terminal_renderer.hpp"
+
 #include <ostream>
+#include <string>
 #include <utility>
 
 namespace octopus {
@@ -64,7 +67,10 @@ AskRunResult runOneShotAsk(const CliOptions& options, llm::Runtime& runtime,
     return {1, std::move(completion)};
   }
 
-  out << completion.value().response.text << '\n';
+  const std::string text =
+      sanitizeTerminalText(completion.value().response.text);
+  out.write(text.data(), static_cast<std::streamsize>(text.size()));
+  out.put('\n');
   return {0, std::move(completion)};
 }
 

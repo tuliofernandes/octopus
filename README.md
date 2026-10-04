@@ -6,11 +6,13 @@ C++17 and powered by llama.cpp. The current product is a terminal CLI named
 
 Current capabilities include:
 
-- streamed local-model responses;
+- completed-turn Markdown rendering in interactive terminals, while backend
+  generation remains streamed internally;
 - a multi-turn conversation loop;
 - one-shot `ask` mode;
-- interactive multiline editing, cursor and word movement, deletion, paste,
-  Ctrl+C cancellation, and Ctrl+D exit;
+- promptless interactive multiline editing with UTF-8 code-point cursor and
+  deletion behavior, terminal-width-aware redraw, paste, Ctrl+C cancellation,
+  and Ctrl+D exit;
 - a model-neutral runtime contract for prompt compilation, capabilities,
   inference, and assistant-response parsing;
 - an explicitly composed Google Gemma integration with GGUF chat-template
@@ -77,8 +79,9 @@ distributions. For non-Fedora systems, install the equivalent HIP SDK and
 development libraries from your distribution or AMD before using that preset.
 
 The setup below installs the pinned Conan 2 release in a project-local
-`.venv`. Catch2 3.7.1 is then resolved through Conan. llama.cpp is fetched by
-CMake at the revision pinned in `CMakeLists.txt`.
+`.venv`. Catch2 3.7.1 and the MIT-licensed MD4C 0.5.2 parser are then resolved
+through Conan; only MD4C's parser library is used. llama.cpp is fetched by CMake
+at the revision pinned in `CMakeLists.txt`.
 
 ## Models
 
@@ -147,12 +150,41 @@ Start an interactive conversation:
 ./build/octo --model qwen35
 ```
 
+Interactive input begins at column 1 without a prompt or faint styling. During
+generation, Octopus shows one transient `Thinking...` line, replaces it with a
+permanent `Thought for <duration>.` summary, and then writes the complete parsed
+assistant response once. Raw generation chunks are not displayed. The final
+response supports headings, emphasis/strong text, lists and task items, inline
+and fenced code, links, block quotes, line breaks, autolinks, and
+strikethrough. It uses native terminal wrapping; there is no response gutter,
+manual response wrapping, alternate screen, cursor hiding, or OSC hyperlink.
+Tables receive no special layout, and raw HTML remains visible literal text.
+Cancellation clears the transient line and does not publish a partial answer
+or a successful duration summary.
+
+Enhanced rendering requires TTY stdin and stdout, a non-empty `TERM` other than
+`dumb`, and a usable terminal width for transient activity. `TERM=dumb`, pipes,
+and redirects receive sanitized raw Markdown with no prompts, timing chrome,
+ANSI styling, or renderer-created line wrapping. A non-empty `NO_COLOR` removes
+color only; cursor updates and semantic bold/italic/strikethrough remain
+available. An empty `NO_COLOR` value does not disable color. Invalid UTF-8 and
+model-provided terminal control bytes are sanitized before output.
+
+Precomposed accented input is supported for insertion, cursor movement, and
+deletion. Full grapheme-cluster editing for combining sequences and emoji is a
+later capability. Terminal resize while an input/status line is already live
+is best-effort; width is queried again for later redraws and status updates.
+
 Run a one-shot request:
 
 ```bash
 ./build/octo ask "Who was John Kennedy?"
 ./build/octo --model qwen35 ask "Who was John Kennedy?"
 ```
+
+One-shot `ask` always prints sanitized raw assistant text rather than terminal
+Markdown styling, including when stdout is a TTY. This keeps it suitable for
+pipes and command substitution.
 
 `--model` must precede the mode. It selects one supported family; it does not
 accept a filesystem path. Model paths, generation budget, GPU layers,

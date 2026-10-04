@@ -9,6 +9,7 @@ target_sources(octopus_tests PRIVATE
         cli/cli_test.cpp
         cli/input_editor_test.cpp
         cli/terminal_input_test.cpp
+        cli/terminal_renderer_test.cpp
         inference/completion_test.cpp
         llm/runtime_test.cpp
         models/alibaba/qwen3_5/integration_test.cpp

@@ -144,8 +144,7 @@ octopus::llm::InferenceResult successfulCompletion(std::string text) {
 
 }  // namespace
 
-TEST_CASE("CLI chat prompts, sends one user line, and exits cleanly on EOF",
-          "[chat]") {
+TEST_CASE("CLI chat sends one user line and exits cleanly on EOF", "[chat]") {
   RuntimeHarness<RecordingBackend> harness(
       std::vector<octopus::llm::InferenceResult>{
           successfulCompletion("Hello from Octopus.")});
@@ -168,7 +167,7 @@ TEST_CASE("CLI chat prompts, sends one user line, and exits cleanly on EOF",
   CHECK(harness.compiler.conversations[0].messages[2].role ==
         octopus::llm::Role::User);
   CHECK(harness.compiler.conversations[0].messages[2].content == "Hello");
-  CHECK(out.str() == "> \nHello from Octopus.\n\n> ");
+  CHECK(out.str() == "Hello from Octopus.\n\n");
   CHECK(err.str().empty());
 }
 
@@ -203,7 +202,7 @@ TEST_CASE("CLI chat preserves assistant replies in later turn history",
 TEST_CASE("CLI chat renders streaming chunks without duplicating final text",
           "[chat]") {
   RuntimeHarness<StreamingBackend> harness(
-      std::vector<std::vector<std::string>>{{"Hello", " from", " Octopus."}},
+      std::vector<std::vector<std::string>>{{"<raw>", " hidden"}},
       std::vector<octopus::llm::InferenceResult>{
           successfulCompletion("Hello from Octopus.")});
   octopus::CliOptions options;
@@ -217,7 +216,41 @@ TEST_CASE("CLI chat renders streaming chunks without duplicating final text",
 
   CHECK(result.exit_code == 0);
   CHECK(harness.backend.blocking_calls == 0);
-  CHECK(out.str() == "> \nHello from Octopus.\n\n> ");
+  CHECK(out.str() == "Hello from Octopus.\n\n");
+  CHECK(err.str().empty());
+}
+
+TEST_CASE("CLI chat renders one timed completed Markdown response", "[chat]") {
+  using namespace std::chrono_literals;
+  RuntimeHarness<StreamingBackend> harness(
+      std::vector<std::vector<std::string>>{{"raw protocol text"}},
+      std::vector<octopus::llm::InferenceResult>{
+          successfulCompletion("# Final answer")});
+  octopus::CliOptions options;
+  options.mode = octopus::CliMode::Interactive;
+  std::istringstream in("Hello\n");
+  std::ostringstream out;
+  std::ostringstream err;
+  auto now = std::chrono::steady_clock::time_point{};
+  octopus::ChatPresentation presentation;
+  presentation.capabilities = {true, true, true,           true,
+                               true, true, std::size_t{80}};
+  presentation.width_query = [] { return std::optional<std::size_t>{80}; };
+  presentation.now = [&now] {
+    const auto current = now;
+    now += 12s;
+    return current;
+  };
+
+  const auto result = octopus::runCliChat(options, harness.runtime, in, out,
+                                          err, std::move(presentation));
+
+  CHECK(result.exit_code == 0);
+  CHECK(out.str() ==
+        "\r\x1b[2KThinking...\x1b[0m"
+        "\r\x1b[2KThought for 12 seconds.\x1b[0m\n"
+        "\x1b[1;36mFinal answer\x1b[0m\n\n");
+  CHECK(out.str().find("raw protocol text") == std::string::npos);
   CHECK(err.str().empty());
 }
 
@@ -237,7 +270,7 @@ TEST_CASE("CLI chat ignores blank lines without calling the backend",
 
   CHECK(result.exit_code == 0);
   CHECK(harness.compiler.conversations.size() == 1);
-  CHECK(out.str() == "> > \nOnly once.\n\n> > ");
+  CHECK(out.str() == "Only once.\n\n");
   CHECK(err.str().empty());
 }
 
@@ -259,7 +292,7 @@ TEST_CASE("CLI chat joins continued lines into one user message", "[chat]") {
   REQUIRE(harness.compiler.conversations[0].messages.size() == 3);
   CHECK(harness.compiler.conversations[0].messages[2].content ==
         "First line\nsecond line");
-  CHECK(out.str() == "> \nJoined.\n\n> ");
+  CHECK(out.str() == "Joined.\n\n");
   CHECK(err.str().empty());
 }
 
@@ -309,8 +342,31 @@ TEST_CASE("CLI chat reports backend errors and stops without assistant history",
   REQUIRE(harness.compiler.conversations[0].messages.size() == 3);
   CHECK(harness.compiler.conversations[0].messages.back().role ==
         octopus::llm::Role::User);
-  CHECK(out.str() == "> ");
+  CHECK(out.str().empty());
   CHECK(err.str().find("model failed") != std::string::npos);
+}
+
+TEST_CASE("CLI chat clears interactive activity before backend diagnostics",
+          "[chat]") {
+  RuntimeHarness<RecordingBackend> harness(
+      std::vector<octopus::llm::InferenceResult>{
+          octopus::llm::InferenceResult::failure("model failed")});
+  octopus::CliOptions options;
+  options.mode = octopus::CliMode::Interactive;
+  std::istringstream in("Hello\n");
+  std::ostringstream out;
+  std::ostringstream err;
+  octopus::ChatPresentation presentation;
+  presentation.capabilities = {true,  true, true,           true,
+                               false, true, std::size_t{80}};
+
+  const auto result = octopus::runCliChat(options, harness.runtime, in, out,
+                                          err, std::move(presentation));
+
+  CHECK(result.exit_code == 1);
+  CHECK(out.str() == "\r\x1b[2KThinking...\x1b[0m\r\x1b[2K\x1b[0m");
+  CHECK(out.str().find("Thought for") == std::string::npos);
+  CHECK(err.str() == "model failed\n");
 }
 
 TEST_CASE("CLI chat ends a partial streamed line before reporting an error",
@@ -329,7 +385,7 @@ TEST_CASE("CLI chat ends a partial streamed line before reporting an error",
       octopus::runCliChat(options, harness.runtime, in, out, err);
 
   CHECK(result.exit_code == 1);
-  CHECK(out.str() == "> \nPartial answer\n");
+  CHECK(out.str().empty());
   CHECK(err.str().find("decode failed") != std::string::npos);
 }
 
@@ -356,7 +412,7 @@ TEST_CASE("CLI chat treats loop-detected output as assistant history",
         octopus::llm::Role::Assistant);
   CHECK(harness.compiler.conversations[1].messages[3].content ==
         "Useful prefix.");
-  CHECK(out.str().find("\nUseful prefix.\n\n") != std::string::npos);
+  CHECK(out.str().find("Useful prefix.\n\n") != std::string::npos);
   CHECK(err.str().empty());
 }
 
@@ -375,7 +431,7 @@ TEST_CASE("CLI chat exits cleanly on EOF before a message", "[chat]") {
 
   CHECK(result.exit_code == 0);
   CHECK(harness.compiler.conversations.empty());
-  CHECK(out.str() == "> ");
+  CHECK(out.str().empty());
   CHECK(err.str().empty());
 }
 
@@ -398,6 +454,6 @@ TEST_CASE("CLI chat handles cancelled generation without assistant history",
   CHECK(harness.compiler.conversations[1].messages[2].role ==
         octopus::llm::Role::User);
   CHECK(harness.compiler.conversations[1].messages[2].content == "Again");
-  CHECK(out.str() == "> \nPartial\n\n> \nPartial\n\n> ");
+  CHECK(out.str().empty());
   CHECK(err.str().empty());
 }

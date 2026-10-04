@@ -176,6 +176,25 @@ TEST_CASE("one-shot ask treats loop detection as a successful completion",
   CHECK(err.str().empty());
 }
 
+TEST_CASE("one-shot ask remains raw while sanitizing terminal controls",
+          "[ask]") {
+  RuntimeHarness harness(octopus::llm::InferenceResult::success(
+      {"# Markdown\r\n\x1b]52;c;secret\a text",
+       octopus::llm::FinishReason::EndOfGeneration, 3}));
+  octopus::CliOptions options;
+  options.mode = octopus::CliMode::Ask;
+  options.prompt = "Answer safely";
+
+  std::ostringstream out;
+  std::ostringstream err;
+  const auto result =
+      octopus::runOneShotAsk(options, harness.runtime, out, err);
+
+  CHECK(result.exit_code == 0);
+  CHECK(out.str() == "# Markdown\n]52;c;secret text\n");
+  CHECK(out.str().find('\x1b') == std::string::npos);
+}
+
 TEST_CASE("one-shot ask reports backend errors on stderr", "[ask]") {
   RuntimeHarness harness(
       octopus::llm::InferenceResult::failure("model failed"));
