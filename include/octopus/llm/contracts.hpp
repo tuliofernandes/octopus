@@ -26,6 +26,17 @@ struct TemplateMessage {
   std::string content;
 };
 
+enum class TemplateReasoningPolicy {
+  ModelDefault,
+  Disabled,
+};
+
+struct ChatTemplateRequest {
+  std::vector<TemplateMessage> messages;
+  bool add_generation_prompt = true;
+  TemplateReasoningPolicy reasoning = TemplateReasoningPolicy::ModelDefault;
+};
+
 using TemplateRenderResult = Result<std::string>;
 
 class PromptCompiler {
@@ -52,10 +63,10 @@ class InferenceBackend {
 class ChatTemplateEngine {
  public:
   virtual ~ChatTemplateEngine() = default;
-  // The engine may borrow message storage only for this blocking call. Results
+  // The engine may borrow request storage only for this blocking call. Results
   // own rendered text and never expose backend-native handles or string views.
   virtual TemplateRenderResult render(
-      const std::vector<TemplateMessage>& messages) const = 0;
+      const ChatTemplateRequest& request) const = 0;
 };
 
 class ModelIntegration final {

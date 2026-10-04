@@ -15,15 +15,19 @@ constexpr const char* kProgramName = "octo";
 std::string helpText() {
   std::ostringstream output;
   output << "Usage: " << kProgramName << " [--help]\n"
-         << "       " << kProgramName << "\n"
-         << "       " << kProgramName << " ask <prompt...>\n\n"
+         << "       " << kProgramName << " [--model <qwen35|gemma>]\n"
+         << "       " << kProgramName
+         << " [--model <qwen35|gemma>] ask <prompt...>\n\n"
          << "Modes:\n"
          << "  " << kProgramName
          << "                  Start a pure CLI multi-turn chat\n"
          << "  " << kProgramName
          << " ask <prompt...>  Ask one question and print one answer\n\n"
          << "Options:\n"
-         << "  -h, --help       Show this help message and exit\n";
+         << "  --model <qwen35|gemma>  Select the model (default: gemma)\n"
+         << "  -h, --help              Show this help message and exit\n\n"
+         << "Examples:\n"
+         << "  " << kProgramName << " --model gemma ask \"Say hello\"\n";
   return output.str();
 }
 
@@ -56,8 +60,7 @@ CliParseResult errorResult(const std::string& message) {
 bool containsLowLevelFlag(const std::vector<std::string>& arguments,
                           std::string& flag) {
   const std::vector<std::string> low_level_flags{
-      "-m",   "--model",        "-n", "--n_predict",
-      "-ngl", "--n_gpu_layers", "-q", "--quiet"};
+      "-m", "-n", "--n_predict", "-ngl", "--n_gpu_layers", "-q", "--quiet"};
 
   const auto found =
       std::find_first_of(arguments.begin(), arguments.end(),
@@ -90,28 +93,68 @@ CliParseResult parseCli(const std::vector<std::string>& arguments) {
     return errorResult("unsupported runtime flag: " + low_level_flag);
   }
 
-  if (arguments.size() == 1) {
-    CliParseResult result;
+  CliParseResult result;
+  std::size_t cursor = 1;
+  bool model_seen = false;
+  while (cursor < arguments.size() && arguments[cursor] == "--model") {
+    if (model_seen) {
+      return errorResult("--model may not be specified more than once");
+    }
+    model_seen = true;
+    if (cursor + 1 >= arguments.size()) {
+      return errorResult("--model requires one of: qwen35|gemma");
+    }
+
+    const auto& model = arguments[cursor + 1];
+    if (model == "qwen35") {
+      result.options.model = CliModel::Qwen35;
+    } else if (model == "gemma") {
+      result.options.model = CliModel::Gemma;
+    } else {
+      return errorResult("invalid --model value; expected qwen35|gemma");
+    }
+    cursor += 2;
+  }
+
+  if (cursor == arguments.size()) {
     result.ok = true;
     result.exit_code = 0;
     result.options.mode = CliMode::Interactive;
     return result;
   }
 
-  if (arguments[1] != "ask") {
-    return errorResult("unknown mode: " + arguments[1]);
+  if (arguments[cursor].rfind("--model=", 0) == 0) {
+    return errorResult("unsupported option: " + arguments[cursor]);
   }
 
-  if (arguments.size() == 2) {
+  if (arguments[cursor] != "ask") {
+    return errorResult("unknown mode: " + arguments[cursor]);
+  }
+
+  ++cursor;
+  if (cursor == arguments.size()) {
     return errorResult("ask requires a prompt");
   }
 
-  CliParseResult result;
+  if (std::find(arguments.begin() + static_cast<std::ptrdiff_t>(cursor),
+                arguments.end(), "--model") != arguments.end()) {
+    return errorResult("--model must precede the mode");
+  }
+  const auto equals_model =
+      std::find_if(arguments.begin() + static_cast<std::ptrdiff_t>(cursor),
+                   arguments.end(), [](const std::string& argument) {
+                     return argument.rfind("--model=", 0) == 0;
+                   });
+  if (equals_model != arguments.end()) {
+    return errorResult("unsupported option: " + *equals_model);
+  }
+
   result.ok = true;
   result.exit_code = 0;
   result.options.mode = CliMode::Ask;
-  result.options.prompt = joinPrompt(
-      std::vector<std::string>{arguments.begin() + 2, arguments.end()});
+  result.options.prompt = joinPrompt(std::vector<std::string>{
+      arguments.begin() + static_cast<std::ptrdiff_t>(cursor),
+      arguments.end()});
 
   return result;
 }

@@ -114,7 +114,8 @@ llm::CompiledPrompt compileManual(const llm::Conversation& conversation) {
 llm::CompileResult GemmaPromptCompiler::compile(
     const llm::Conversation& conversation) const {
   const auto templated =
-      template_engine_.render(makeTemplateMessages(conversation));
+      template_engine_.render({makeTemplateMessages(conversation), true,
+                               llm::TemplateReasoningPolicy::ModelDefault});
   if (templated.hasValue()) {
     return llm::CompileResult::success({templated.value(), {kEndOfTurn}});
   }

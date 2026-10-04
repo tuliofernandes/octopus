@@ -10,9 +10,14 @@ enum class CliMode {
   Ask,
 };
 
+enum class CliModel {
+  Qwen35,
+  Gemma,
+};
+
 struct CliOptions {
   CliMode mode = CliMode::Interactive;
-  std::string model_path = "./models/gemma-3-1b-it-Q4_K_M.gguf";
+  CliModel model = CliModel::Gemma;
   std::string prompt;
   int n_predict = 512;
   int n_gpu_layers = 99;

@@ -2,12 +2,21 @@
 
 #include "octopus/llm/completion.hpp"
 
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+#endif
+#include "chat.h"
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 #include "ggml-backend.h"
 #include "llama.h"
 
 #include <algorithm>
 #include <cctype>
 #include <cstdint>
+#include <exception>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -169,7 +178,9 @@ std::vector<ggml_backend_dev_t> selectSingleGpuDevice() {
 
 struct LlamaCppBackend::Impl {
   explicit Impl(LlamaCppBackendOptions init_options)
-      : options(std::move(init_options)), model(nullptr, llama_model_free) {
+      : options(std::move(init_options)),
+        model(nullptr, llama_model_free),
+        chat_templates(nullptr) {
     if (options.quiet) {
       llama_log_set([](ggml_log_level, const char*, void*) {}, nullptr);
     }
@@ -191,6 +202,17 @@ struct LlamaCppBackend::Impl {
     }
     model.reset(
         llama_model_load_from_file(options.model_path.c_str(), model_params));
+    if (model != nullptr &&
+        llama_model_chat_template(model.get(), nullptr) == nullptr) {
+      template_initialization_error =
+          "model chat template metadata is unavailable";
+    } else if (model != nullptr) {
+      try {
+        chat_templates = common_chat_templates_init(model.get(), "");
+      } catch (const std::exception& error) {
+        template_initialization_error = error.what();
+      }
+    }
   }
 
   llm::InferenceResult generate(const llm::CompiledPrompt& prompt,
@@ -330,67 +352,51 @@ struct LlamaCppBackend::Impl {
   }
 
   llm::TemplateRenderResult render(
-      const std::vector<llm::TemplateMessage>& messages) const {
+      const llm::ChatTemplateRequest& request) const {
     if (model == nullptr) {
-      return llm::TemplateRenderResult::failure("model is unavailable");
+      return llm::TemplateRenderResult::failure("unable to load model: " +
+                                                options.model_path);
     }
-
-    const char* chat_template = llama_model_chat_template(model.get(), nullptr);
-    if (chat_template == nullptr) {
+    if (!template_initialization_error.empty()) {
       return llm::TemplateRenderResult::failure(
-          "model chat template metadata is unavailable");
+          "failed to initialize model chat template: " +
+          template_initialization_error);
     }
-
-    std::vector<llama_chat_message> chat;
-    chat.reserve(messages.size());
-    for (const auto& message : messages) {
-      chat.push_back({message.role.c_str(), message.content.c_str()});
-    }
-
-    int32_t formatted_size = llama_chat_apply_template(
-        chat_template, chat.data(), chat.size(), true, nullptr, 0);
-    if (formatted_size < 0) {
+    if (chat_templates == nullptr) {
       return llm::TemplateRenderResult::failure(
-          "model chat template is not supported by llama.cpp");
+          "model chat template is unavailable");
     }
 
-    std::vector<char> buffer(static_cast<std::size_t>(formatted_size));
-    int32_t actual =
-        llama_chat_apply_template(chat_template, chat.data(), chat.size(), true,
-                                  buffer.empty() ? nullptr : buffer.data(),
-                                  static_cast<int32_t>(buffer.size()));
-    if (actual < 0) {
-      return llm::TemplateRenderResult::failure(
-          "failed to apply model chat template");
-    }
-
-    if (static_cast<std::size_t>(actual) > buffer.size()) {
-      if (!fitsInt32(static_cast<std::size_t>(actual))) {
-        return llm::TemplateRenderResult::failure(
-            "rendered chat template is too large");
+    try {
+      common_chat_templates_inputs inputs;
+      inputs.messages.reserve(request.messages.size());
+      for (const auto& message : request.messages) {
+        common_chat_msg native_message;
+        native_message.role = message.role;
+        native_message.content = message.content;
+        inputs.messages.push_back(std::move(native_message));
       }
-      buffer.resize(static_cast<std::size_t>(actual));
-      actual = llama_chat_apply_template(
-          chat_template, chat.data(), chat.size(), true,
-          buffer.empty() ? nullptr : buffer.data(),
-          static_cast<int32_t>(buffer.size()));
-    }
+      inputs.add_generation_prompt = request.add_generation_prompt;
+      inputs.use_jinja = true;
+      inputs.enable_thinking =
+          request.reasoning != llm::TemplateReasoningPolicy::Disabled;
 
-    if (actual < 0 || static_cast<std::size_t>(actual) > buffer.size()) {
+      auto rendered =
+          common_chat_templates_apply(chat_templates.get(), inputs).prompt;
+      return llm::TemplateRenderResult::success(std::move(rendered));
+    } catch (const std::exception& error) {
       return llm::TemplateRenderResult::failure(
-          "failed to apply model chat template");
+          "failed to apply model chat template: " + std::string(error.what()));
     }
-
-    std::string rendered;
-    if (actual > 0) {
-      rendered.assign(buffer.data(), static_cast<std::size_t>(actual));
-    }
-    return llm::TemplateRenderResult::success(std::move(rendered));
   }
 
   LlamaCppBackendOptions options;
   std::vector<ggml_backend_dev_t> selected_devices;
   std::unique_ptr<llama_model, decltype(&llama_model_free)> model;
+  // Declared after the model so reverse destruction releases metadata-backed
+  // templates before the model and vocabulary they were initialized from.
+  common_chat_templates_ptr chat_templates;
+  std::string template_initialization_error;
 };
 
 LlamaCppBackend::LlamaCppBackend(LlamaCppBackendOptions options)
@@ -405,8 +411,8 @@ llm::InferenceResult LlamaCppBackend::generate(
 }
 
 llm::TemplateRenderResult LlamaCppBackend::render(
-    const std::vector<llm::TemplateMessage>& messages) const {
-  return impl_->render(messages);
+    const llm::ChatTemplateRequest& request) const {
+  return impl_->render(request);
 }
 
 }  // namespace octopus::inference

@@ -35,7 +35,7 @@ class LlamaCppBackend final : public llm::InferenceBackend,
                                 const llm::CancellationToken* cancellation,
                                 llm::CompletionSink* sink) override;
   llm::TemplateRenderResult render(
-      const std::vector<llm::TemplateMessage>& messages) const override;
+      const llm::ChatTemplateRequest& request) const override;
 
  private:
   struct Impl;

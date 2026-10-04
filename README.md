@@ -15,6 +15,10 @@ Current capabilities include:
   inference, and assistant-response parsing;
 - an explicitly composed Google Gemma integration with GGUF chat-template
   preference and a manual fallback;
+- a selectable Alibaba Qwen3.5 integration that uses the GGUF's embedded Jinja
+  template with thinking disabled;
+- typed `--model qwen35|gemma` selection while loading exactly one model per
+  process;
 - testable runtime, model-integration, inference, and CLI boundaries that do
   not require a model in unit tests.
 
@@ -76,19 +80,41 @@ The setup below installs the pinned Conan 2 release in a project-local
 `.venv`. Catch2 3.7.1 is then resolved through Conan. llama.cpp is fetched by
 CMake at the revision pinned in `CMakeLists.txt`.
 
-## Model
+## Models
 
-The current default model path is:
+Gemma remains the default model after the local Qwen CPU long-context promotion
+gate exceeded its predeclared time limit. Qwen3.5 is selectable and verified on
+the local AMD HIP configuration.
 
-```text
-./models/gemma-3-1b-it-Q4_K_M.gguf
+| CLI value | Local path | Status |
+| --- | --- | --- |
+| `gemma` | `./models/gemma-3-1b-it-Q4_K_M.gguf` | Default and compatibility option |
+| `qwen35` | `./models/Qwen3.5-4B-Q4_K_M.gguf` | Selectable; HIP verified, CPU short requests operational |
+
+Download the exact approved Qwen3.5 artifact with:
+
+```bash
+hf download unsloth/Qwen3.5-4B-GGUF Qwen3.5-4B-Q4_K_M.gguf \
+  --revision 720bb031aae5488eae5d6a78768e6d826662b2ae \
+  --local-dir ./models
+echo "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4  models/Qwen3.5-4B-Q4_K_M.gguf" \
+  | sha256sum -c -
 ```
 
-A compatible GGUF can be downloaded with the Hugging Face CLI, for example:
+The file is 2,740,937,888 bytes. Its base model license is Apache-2.0. Model
+weights remain separately licensed local artifacts and are ignored by Git; do
+not package or commit them.
+
+The existing Gemma model can be downloaded with the Hugging Face CLI:
 
 ```bash
 hf download ggml-org/gemma-3-1b-it-GGUF --local-dir ./models
 ```
+
+On the verified host, Qwen's short HIP requests used about 2.9 GiB peak RSS and
+about 3.0 GiB additional RX 7800 XT VRAM; CPU fallback used about 4.0 GiB peak
+RSS and was much slower. Leave headroom beyond these measurements. No projector
+is needed for this text-only phase.
 
 ## Build
 
@@ -112,17 +138,20 @@ Start an interactive conversation:
 
 ```bash
 ./build/octo
+./build/octo --model qwen35
 ```
 
 Run a one-shot request:
 
 ```bash
 ./build/octo ask "Who was John Kennedy?"
+./build/octo --model qwen35 ask "Who was John Kennedy?"
 ```
 
-The current runtime knobs are intentionally not exposed as CLI flags. Model
-path, generation budget, and GPU-layer defaults remain internal while the
-configuration design is developed.
+`--model` must precede the mode. It selects one supported family; it does not
+accept a filesystem path. Model paths, generation budget, GPU layers,
+quantization, and sampling knobs remain internal while the configuration
+design is developed.
 
 ## Test
 

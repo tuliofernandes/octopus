@@ -17,15 +17,14 @@ class FakeTemplateEngine final : public octopus::llm::ChatTemplateEngine {
       : result_(std::move(result)) {}
 
   octopus::llm::TemplateRenderResult render(
-      const std::vector<octopus::llm::TemplateMessage>& messages)
-      const override {
-    last_messages = messages;
+      const octopus::llm::ChatTemplateRequest& request) const override {
+    last_request = request;
     ++calls;
     return result_;
   }
 
   mutable int calls = 0;
-  mutable std::vector<octopus::llm::TemplateMessage> last_messages;
+  mutable octopus::llm::ChatTemplateRequest last_request;
 
  private:
   octopus::llm::TemplateRenderResult result_;
@@ -78,9 +77,12 @@ TEST_CASE("Gemma compiler prefers the injected metadata template engine",
   CHECK(compiled.value().stop_strings ==
         std::vector<std::string>{"<end_of_turn>"});
   CHECK(engine.calls == 1);
-  REQUIRE(engine.last_messages.size() == 1);
-  CHECK(engine.last_messages[0].role == "user");
-  CHECK(engine.last_messages[0].content ==
+  CHECK(engine.last_request.add_generation_prompt);
+  CHECK(engine.last_request.reasoning ==
+        octopus::llm::TemplateReasoningPolicy::ModelDefault);
+  REQUIRE(engine.last_request.messages.size() == 1);
+  CHECK(engine.last_request.messages[0].role == "user");
+  CHECK(engine.last_request.messages[0].content ==
         "Octopus operating instructions:\n"
         "[system]\n"
         "System policy stays internal.\n"
@@ -150,11 +152,11 @@ TEST_CASE("Gemma template messages use backend-neutral chat roles", "[gemma]") {
       gemma.modelIntegration().compiler().compile(conversation);
 
   REQUIRE(compiled.hasValue());
-  REQUIRE(engine.last_messages.size() == 2);
-  CHECK(engine.last_messages[0].role == "user");
-  CHECK(engine.last_messages[0].content == "First question");
-  CHECK(engine.last_messages[1].role == "assistant");
-  CHECK(engine.last_messages[1].content == "First answer");
+  REQUIRE(engine.last_request.messages.size() == 2);
+  CHECK(engine.last_request.messages[0].role == "user");
+  CHECK(engine.last_request.messages[0].content == "First question");
+  CHECK(engine.last_request.messages[1].role == "assistant");
+  CHECK(engine.last_request.messages[1].content == "First answer");
 }
 
 TEST_CASE("Gemma parser passes through current assistant text", "[gemma]") {

@@ -29,6 +29,8 @@ set(OCTOPUS_FORMAT_SOURCES
         src/inference/backend/llama_cpp_backend.cpp
         src/llm/completion.cpp
         src/llm/runtime.cpp
+        src/models/alibaba/qwen3_5/integration.cpp
+        src/models/alibaba/qwen3_5/integration.hpp
         src/models/google/gemma/integration.cpp
         src/models/google/gemma/integration.hpp
         apps/octo/main.cpp
@@ -38,8 +40,11 @@ set(OCTOPUS_FORMAT_SOURCES
         test/cli/input_editor_test.cpp
         test/cli/terminal_input_test.cpp
         test/inference/completion_test.cpp
+        test/integration/model_completion_probe.cpp
+        test/integration/model_template_probe.cpp
         test/llm/runtime_test.cpp
         test/models/contracts/model_integration_contract.hpp
+        test/models/alibaba/qwen3_5/integration_test.cpp
         test/models/google/gemma/integration_test.cpp
         test/smoke/public_header_compatibility_test.cpp
         test/smoke/smoke_test.cpp)
@@ -59,7 +64,12 @@ FetchContent_Declare(
         GIT_REPOSITORY https://github.com/ggml-org/llama.cpp.git
         GIT_TAG 834a243664114487f99520370a7a7b00fc7a486f
 )
+set(LLAMA_BUILD_COMMON ON CACHE BOOL
+        "Build llama.cpp common utilities required by Octopus templates" FORCE)
 FetchContent_MakeAvailable(llama)
+if(NOT TARGET llama-common)
+        message(FATAL_ERROR "Pinned llama.cpp did not provide llama-common")
+endif()
 
 add_library(octopus_cli STATIC src/cli/cli.cpp)
 target_include_directories(octopus_cli PUBLIC include)
@@ -90,11 +100,18 @@ target_compile_features(octopus_model_google_gemma PUBLIC cxx_std_17)
 target_link_libraries(octopus_model_google_gemma PUBLIC octopus_llm)
 target_compile_options(octopus_model_google_gemma PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
+add_library(octopus_model_alibaba_qwen35 STATIC
+        src/models/alibaba/qwen3_5/integration.cpp)
+target_include_directories(octopus_model_alibaba_qwen35 PUBLIC include src)
+target_compile_features(octopus_model_alibaba_qwen35 PUBLIC cxx_std_17)
+target_link_libraries(octopus_model_alibaba_qwen35 PUBLIC octopus_llm)
+target_compile_options(octopus_model_alibaba_qwen35 PRIVATE -Wall -Wextra -Wpedantic -Werror)
+
 add_library(octopus_inference_llama_cpp STATIC
         src/inference/backend/llama_cpp_backend.cpp)
 target_include_directories(octopus_inference_llama_cpp PUBLIC include)
 target_compile_features(octopus_inference_llama_cpp PUBLIC cxx_std_17)
-target_link_libraries(octopus_inference_llama_cpp PUBLIC octopus_llm PRIVATE llama)
+target_link_libraries(octopus_inference_llama_cpp PUBLIC octopus_llm PRIVATE llama-common)
 target_compile_options(octopus_inference_llama_cpp PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 add_executable(octo apps/octo/main.cpp)
@@ -102,6 +119,7 @@ target_include_directories(octo PRIVATE include src)
 target_compile_features(octo PUBLIC cxx_std_17)
 target_link_libraries(octo PRIVATE
         octopus_cli_modes
+        octopus_model_alibaba_qwen35
         octopus_model_google_gemma
         octopus_inference_llama_cpp)
 
