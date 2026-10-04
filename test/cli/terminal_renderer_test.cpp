@@ -97,12 +97,15 @@ TEST_CASE("terminal capability policy separates NO_COLOR from controls",
       octopus::TerminalRgb{16, 32, 48});
   CHECK(adaptive_background.response_background ==
         octopus::TerminalRgb{30, 45, 60});
+  CHECK(adaptive_background.terminal_background ==
+        octopus::TerminalRgb{16, 32, 48});
   CHECK(adaptive_background.truecolor);
 
   const auto background_with_no_color = octopus::makeTerminalCapabilities(
       true, true, "xterm-256color", std::string_view{"1"}, true, 80, true,
       octopus::TerminalRgb{16, 32, 48});
   CHECK_FALSE(background_with_no_color.response_background.has_value());
+  CHECK_FALSE(background_with_no_color.terminal_background.has_value());
   CHECK_FALSE(background_with_no_color.truecolor);
 }
 
@@ -198,15 +201,21 @@ TEST_CASE("terminal sanitizer normalizes lines and removes unsafe controls",
         "ok\nnext\nline\t]52;c;secret bad\xEF\xBF\xBDX fim");
 }
 
-TEST_CASE("terminal background response is parsed and lightened from its color",
+TEST_CASE("terminal response background contrasts with dark and light themes",
           "[terminal-renderer]") {
   const auto background = octopus::parseTerminalBackgroundResponse(
       "\x1b]11;rgb:1010/2020/3030\x1b\\");
 
   REQUIRE(background.has_value());
   CHECK(*background == octopus::TerminalRgb{16, 32, 48});
-  CHECK(octopus::lightenTerminalBackground(*background) ==
+  CHECK(octopus::deriveResponseBackground(*background) ==
         octopus::TerminalRgb{30, 45, 60});
+  CHECK(octopus::deriveResponseBackground({240, 224, 208}) ==
+        octopus::TerminalRgb{226, 211, 196});
+  CHECK(octopus::deriveResponseBackground({0, 0, 0}) ==
+        octopus::TerminalRgb{15, 15, 15});
+  CHECK(octopus::deriveResponseBackground({255, 255, 255}) ==
+        octopus::TerminalRgb{240, 240, 240});
 
   CHECK(octopus::parseTerminalBackgroundResponse("noise\x1b]11;#102030\a") ==
         octopus::TerminalRgb{16, 32, 48});
@@ -382,6 +391,37 @@ TEST_CASE("response background is reset when line erase is unavailable",
 
   CHECK(encoded == "\x1b[48;2;16;24;32mplain\x1b[0m");
   CHECK(encoded.find("\x1b[K") == std::string::npos);
+}
+
+TEST_CASE("indexed response background differs from the terminal background",
+          "[terminal-renderer]") {
+  const auto document = octopus::parseMarkdown("plain");
+  REQUIRE(document.has_value());
+  const octopus::TerminalRgb dark_blue_background{0, 0, 95};
+
+  const std::string dark_blue = octopus::encodeTerminalDocument(
+      *document,
+      octopus::TerminalEncodingPolicy{
+          true, true, octopus::deriveResponseBackground(dark_blue_background),
+          false, true, dark_blue_background});
+  CHECK(dark_blue == "\x1b[48;5;18mplain\x1b[K\x1b[0m");
+
+  const octopus::TerminalRgb saturated_red_background{255, 0, 0};
+  const std::string saturated_red = octopus::encodeTerminalDocument(
+      *document,
+      octopus::TerminalEncodingPolicy{
+          true, true,
+          octopus::deriveResponseBackground(saturated_red_background), false,
+          true, saturated_red_background});
+  CHECK(saturated_red == "\x1b[48;5;197mplain\x1b[K\x1b[0m");
+
+  const octopus::TerminalRgb white_background{255, 255, 255};
+  const std::string white = octopus::encodeTerminalDocument(
+      *document,
+      octopus::TerminalEncodingPolicy{
+          true, true, octopus::deriveResponseBackground(white_background),
+          false, true, white_background});
+  CHECK(white == "\x1b[48;5;255mplain\x1b[K\x1b[0m");
 }
 
 TEST_CASE("plain response preserves sanitized Markdown without chrome",

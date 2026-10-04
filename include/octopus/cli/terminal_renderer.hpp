@@ -46,6 +46,7 @@ struct TerminalCapabilities {
   bool color = false;
   bool utf8 = false;
   std::optional<std::size_t> columns;
+  std::optional<TerminalRgb> terminal_background;
   std::optional<TerminalRgb> response_background;
   bool truecolor = false;
 };
@@ -62,7 +63,7 @@ std::optional<TerminalRgb> queryTerminalBackground(int input_fd,
                                                    int output_fd) noexcept;
 std::optional<TerminalRgb> parseTerminalBackgroundResponse(
     std::string_view response) noexcept;
-TerminalRgb lightenTerminalBackground(TerminalRgb background) noexcept;
+TerminalRgb deriveResponseBackground(TerminalRgb background) noexcept;
 
 std::string sanitizeTerminalText(std::string_view text);
 std::string formatElapsed(std::chrono::steady_clock::duration elapsed);
@@ -92,18 +93,21 @@ struct TerminalEncodingPolicy {
   TerminalEncodingPolicy(
       bool use_sgr_attributes = false, bool use_color = false,
       std::optional<TerminalRgb> response_background = std::nullopt,
-      bool use_truecolor = false, bool use_erase_line = false) noexcept
+      bool use_truecolor = false, bool use_erase_line = false,
+      std::optional<TerminalRgb> source_background = std::nullopt) noexcept
       : sgr_attributes(use_sgr_attributes),
         color(use_color),
         background(response_background),
         truecolor(use_truecolor),
-        erase_line(use_erase_line) {}
+        erase_line(use_erase_line),
+        terminal_background(source_background) {}
 
   bool sgr_attributes = false;
   bool color = false;
   std::optional<TerminalRgb> background;
   bool truecolor = false;
   bool erase_line = false;
+  std::optional<TerminalRgb> terminal_background;
 };
 
 std::optional<TerminalDocument> parseMarkdown(std::string_view markdown);

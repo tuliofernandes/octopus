@@ -158,13 +158,15 @@ is not displayed today. Raw generation chunks are not displayed. Exactly one
 blank row separates user input and assistant output in both directions.
 
 When terminal color discovery succeeds, each assistant response receives a
-full-width background slightly lighter than the terminal's own background.
-Octopus queries the terminal with OSC 11 and uses `COLORFGBG` when available;
-it emits truecolor when `COLORTERM` advertises it and otherwise chooses the
-nearest 256-color value. Unsupported terminals simply omit the response
-background rather than assuming a fixed color. The final response supports
-headings, emphasis/strong text, lists and task items, inline and fenced code,
-links, block quotes, line breaks, autolinks, and strikethrough. It uses native
+subtly contrasting full-width background derived from the terminal's own
+background: dark themes become slightly lighter and light themes become
+slightly darker. Octopus queries the terminal with OSC 11 and uses `COLORFGBG`
+when available; it emits truecolor when `COLORTERM` advertises it and otherwise
+chooses a distinct nearby 256-color value. Unsupported terminals simply omit
+the response background rather than assuming a fixed color. The final response
+supports headings, emphasis/strong text, lists and task items, inline and
+fenced code, links, block quotes, line breaks, autolinks, and strikethrough. It
+uses native
 terminal wrapping; there is no response gutter, manual response wrapping,
 alternate screen, cursor hiding, or OSC hyperlink. Tables receive no special
 layout, and raw HTML remains visible literal text. Cancellation clears the

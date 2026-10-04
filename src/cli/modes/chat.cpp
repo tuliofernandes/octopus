@@ -89,8 +89,9 @@ ChatRunResult runCliChat(const CliOptions& options, llm::Runtime& runtime,
     const auto background =
         queryTerminalBackground(STDIN_FILENO, STDOUT_FILENO);
     if (background.has_value()) {
+      presentation.capabilities.terminal_background = background;
       presentation.capabilities.response_background =
-          lightenTerminalBackground(*background);
+          deriveResponseBackground(*background);
     }
   }
   return runCliChat(options, runtime, in, out, err, std::move(presentation));

@@ -9,6 +9,7 @@
 #include <cerrno>
 #include <cctype>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <limits>
@@ -155,13 +156,43 @@ std::optional<TerminalRgb> colorFromColorFgbg(
   return index.has_value() ? xtermIndexedColor(*index) : std::nullopt;
 }
 
-unsigned xtermColorIndex(TerminalRgb color) noexcept {
+double relativeLuminance(TerminalRgb color) noexcept {
+  const auto linearize = [](std::uint8_t component) {
+    const double srgb = static_cast<double>(component) / 255.0;
+    return srgb <= 0.04045 ? srgb / 12.92
+                           : std::pow((srgb + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * linearize(color.red) + 0.7152 * linearize(color.green) +
+         0.0722 * linearize(color.blue);
+}
+
+unsigned nearestXtermColorIndex(
+    TerminalRgb color, std::optional<unsigned> excluded_index,
+    std::optional<TerminalRgb> contrast_background) noexcept {
   unsigned best_index = 16;
   unsigned best_distance = std::numeric_limits<unsigned>::max();
+  bool found = false;
+  const double target_luminance = relativeLuminance(color);
+  const double background_luminance =
+      contrast_background.has_value() ? relativeLuminance(*contrast_background)
+                                      : target_luminance;
+  const bool enforce_direction = contrast_background.has_value() &&
+                                 target_luminance != background_luminance;
+  const bool target_is_lighter = target_luminance > background_luminance;
   for (unsigned index = 16; index <= 255; ++index) {
+    if (excluded_index.has_value() && index == *excluded_index) {
+      continue;
+    }
     const auto candidate = xtermIndexedColor(index);
     if (!candidate.has_value()) {
       continue;
+    }
+    if (enforce_direction) {
+      const double candidate_luminance = relativeLuminance(*candidate);
+      if ((target_is_lighter && candidate_luminance <= background_luminance) ||
+          (!target_is_lighter && candidate_luminance >= background_luminance)) {
+        continue;
+      }
     }
     const int red = static_cast<int>(candidate->red) - color.red;
     const int green = static_cast<int>(candidate->green) - color.green;
@@ -169,19 +200,40 @@ unsigned xtermColorIndex(TerminalRgb color) noexcept {
     const unsigned distance =
         static_cast<unsigned>(red * red + green * green + blue * blue);
     if (distance < best_distance) {
+      found = true;
       best_distance = distance;
       best_index = index;
     }
   }
+  if (!found && enforce_direction) {
+    return nearestXtermColorIndex(color, excluded_index, std::nullopt);
+  }
   return best_index;
 }
 
-std::string backgroundPrefix(TerminalRgb color, bool truecolor) {
+unsigned xtermColorIndex(TerminalRgb color) noexcept {
+  return nearestXtermColorIndex(color, std::nullopt, std::nullopt);
+}
+
+unsigned xtermResponseColorIndex(
+    TerminalRgb color,
+    std::optional<TerminalRgb> terminal_background) noexcept {
+  const std::optional<unsigned> background_index =
+      terminal_background.has_value()
+          ? std::optional<unsigned>{xtermColorIndex(*terminal_background)}
+          : std::nullopt;
+  return nearestXtermColorIndex(color, background_index, terminal_background);
+}
+
+std::string backgroundPrefix(TerminalRgb color, bool truecolor,
+                             std::optional<TerminalRgb> terminal_background) {
   if (truecolor) {
     return "\x1b[48;2;" + std::to_string(color.red) + ";" +
            std::to_string(color.green) + ";" + std::to_string(color.blue) + "m";
   }
-  return "\x1b[48;5;" + std::to_string(xtermColorIndex(color)) + "m";
+  return "\x1b[48;5;" +
+         std::to_string(xtermResponseColorIndex(color, terminal_background)) +
+         "m";
 }
 
 void appendUtf8(std::string& output, std::uint32_t value) {
@@ -775,7 +827,8 @@ std::string stylePrefix(const TerminalTextStyle& style,
     } else {
       codes.push_back("48");
       codes.push_back("5");
-      codes.push_back(std::to_string(xtermColorIndex(*policy.background)));
+      codes.push_back(std::to_string(xtermResponseColorIndex(
+          *policy.background, policy.terminal_background)));
     }
   }
   const bool has_semantic_style =
@@ -824,8 +877,9 @@ TerminalCapabilities makeTerminalCapabilities(
   capabilities.utf8 = capabilities.interactive_session && utf8;
   capabilities.truecolor = capabilities.color && truecolor;
   if (capabilities.color && terminal_background.has_value()) {
+    capabilities.terminal_background = terminal_background;
     capabilities.response_background =
-        lightenTerminalBackground(*terminal_background);
+        deriveResponseBackground(*terminal_background);
   }
   if (output_is_tty && columns.has_value() && *columns > 0) {
     capabilities.columns = columns;
@@ -992,18 +1046,27 @@ std::optional<TerminalRgb> queryTerminalBackground(int input_fd,
   return background;
 }
 
-TerminalRgb lightenTerminalBackground(TerminalRgb background) noexcept {
-  const auto lighten = [](std::uint8_t component) {
-    if (component == 255) {
+TerminalRgb deriveResponseBackground(TerminalRgb background) noexcept {
+  const bool lighten = relativeLuminance(background) < 0.5;
+  const auto adjust = [lighten](std::uint8_t component) {
+    if (lighten) {
+      if (component == 255) {
+        return component;
+      }
+      const unsigned distance = 255U - component;
+      const unsigned increase = std::max(1U, (distance * 6U + 50U) / 100U);
+      return static_cast<std::uint8_t>(
+          std::min(255U, static_cast<unsigned>(component) + increase));
+    }
+    if (component == 0) {
       return component;
     }
-    const unsigned distance = 255U - component;
-    const unsigned increase = std::max(1U, (distance * 6U + 50U) / 100U);
-    return static_cast<std::uint8_t>(
-        std::min(255U, static_cast<unsigned>(component) + increase));
+    const unsigned decrease =
+        std::max(1U, (static_cast<unsigned>(component) * 6U + 50U) / 100U);
+    return static_cast<std::uint8_t>(component - decrease);
   };
-  return {lighten(background.red), lighten(background.green),
-          lighten(background.blue)};
+  return {adjust(background.red), adjust(background.green),
+          adjust(background.blue)};
 }
 
 std::string sanitizeTerminalText(std::string_view text) {
@@ -1101,7 +1164,8 @@ std::string encodeTerminalDocument(const TerminalDocument& document,
   std::string output;
   const std::string line_background =
       policy.background.has_value()
-          ? backgroundPrefix(*policy.background, policy.truecolor)
+          ? backgroundPrefix(*policy.background, policy.truecolor,
+                             policy.terminal_background)
           : std::string{};
   for (std::size_t line_index = 0; line_index < document.lines.size();
        ++line_index) {
@@ -1205,7 +1269,8 @@ void TranscriptRenderer::renderAssistant(std::string_view markdown) {
             *document, {capabilities_.sgr_attributes, capabilities_.color,
                         capabilities_.color ? capabilities_.response_background
                                             : std::nullopt,
-                        capabilities_.truecolor, capabilities_.erase_line});
+                        capabilities_.truecolor, capabilities_.erase_line,
+                        capabilities_.terminal_background});
       } else {
         encoded = sanitized;
       }
