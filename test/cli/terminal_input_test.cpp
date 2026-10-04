@@ -235,6 +235,18 @@ TEST_CASE("terminal input consumes up and down arrows", "[terminal-input]") {
   CHECK(event.text == "a");
 }
 
+TEST_CASE("terminal input consumes delayed OSC terminal responses",
+          "[terminal-input]") {
+  octopus::TerminalLineEditor editor;
+
+  const auto event = feedBytes(editor,
+                               "a\x1b]11;rgb:1010/2020/3030\a"
+                               "b\x1b]11;rgb:1010/2020/3030\x1b\\c\n");
+
+  CHECK(event.type == octopus::TerminalInputEventType::Submitted);
+  CHECK(event.text == "abc");
+}
+
 TEST_CASE("terminal input supports right arrow and backspace",
           "[terminal-input]") {
   octopus::TerminalLineEditor editor;

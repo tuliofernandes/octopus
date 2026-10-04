@@ -220,8 +220,9 @@ TEST_CASE("CLI chat renders streaming chunks without duplicating final text",
   CHECK(err.str().empty());
 }
 
-TEST_CASE("CLI chat renders one timed completed Markdown response", "[chat]") {
-  using namespace std::chrono_literals;
+TEST_CASE(
+    "CLI chat clears its spinner before one highlighted Markdown response",
+    "[chat]") {
   RuntimeHarness<StreamingBackend> harness(
       std::vector<std::vector<std::string>>{{"raw protocol text"}},
       std::vector<octopus::llm::InferenceResult>{
@@ -231,26 +232,25 @@ TEST_CASE("CLI chat renders one timed completed Markdown response", "[chat]") {
   std::istringstream in("Hello\n");
   std::ostringstream out;
   std::ostringstream err;
-  auto now = std::chrono::steady_clock::time_point{};
   octopus::ChatPresentation presentation;
   presentation.capabilities = {true, true, true,           true,
                                true, true, std::size_t{80}};
+  presentation.capabilities.response_background = {16, 24, 32};
+  presentation.capabilities.truecolor = true;
   presentation.width_query = [] { return std::optional<std::size_t>{80}; };
-  presentation.now = [&now] {
-    const auto current = now;
-    now += 12s;
-    return current;
-  };
 
   const auto result = octopus::runCliChat(options, harness.runtime, in, out,
                                           err, std::move(presentation));
 
   CHECK(result.exit_code == 0);
   CHECK(out.str() ==
-        "\r\x1b[2KThinking...\x1b[0m"
-        "\r\x1b[2KThought for 12 seconds.\x1b[0m\n"
-        "\x1b[1;36mFinal answer\x1b[0m\n\n");
+        "> \r\x1b[2K\xE2\xA0\x8B\x1b[0m"
+        "\r\x1b[2K\x1b[0m\n"
+        "\x1b[48;2;16;24;32m"
+        "\x1b[1;36;48;2;16;24;32mFinal answer\x1b[0m"
+        "\x1b[48;2;16;24;32m\x1b[K\x1b[0m\n\n> ");
   CHECK(out.str().find("raw protocol text") == std::string::npos);
+  CHECK(out.str().find("Thought for") == std::string::npos);
   CHECK(err.str().empty());
 }
 
@@ -364,7 +364,7 @@ TEST_CASE("CLI chat clears interactive activity before backend diagnostics",
                                           err, std::move(presentation));
 
   CHECK(result.exit_code == 1);
-  CHECK(out.str() == "\r\x1b[2KThinking...\x1b[0m\r\x1b[2K\x1b[0m");
+  CHECK(out.str() == "> \r\x1b[2K\xE2\xA0\x8B\x1b[0m\r\x1b[2K\x1b[0m");
   CHECK(out.str().find("Thought for") == std::string::npos);
   CHECK(err.str() == "model failed\n");
 }

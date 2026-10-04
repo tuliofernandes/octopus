@@ -5,6 +5,8 @@
 #include <md4c.h>
 
 #include <algorithm>
+#include <array>
+#include <cerrno>
 #include <cctype>
 #include <chrono>
 #include <cstdlib>
@@ -17,7 +19,9 @@
 #include <utility>
 #include <vector>
 
+#include <poll.h>
 #include <sys/ioctl.h>
+#include <termios.h>
 #include <unistd.h>
 
 namespace octopus {
@@ -26,6 +30,7 @@ namespace {
 constexpr std::string_view kReplacementCharacter = "\xEF\xBF\xBD";
 constexpr std::size_t kMaximumMarkdownBytes = 4U * 1024U * 1024U;
 constexpr std::size_t kMaximumNesting = 64;
+constexpr std::size_t kMaximumTerminalResponseBytes = 256;
 
 std::optional<std::string> environmentValue(const char* name) {
   const char* value = std::getenv(name);
@@ -52,6 +57,131 @@ bool localeIsUtf8() {
       [](unsigned char byte) { return static_cast<char>(std::tolower(byte)); });
   return normalized.find("utf-8") != std::string::npos ||
          normalized.find("utf8") != std::string::npos;
+}
+
+bool environmentSupportsTruecolor() {
+  const auto colorterm = environmentValue("COLORTERM");
+  if (!colorterm.has_value()) {
+    return false;
+  }
+  std::string normalized = *colorterm;
+  std::transform(
+      normalized.begin(), normalized.end(), normalized.begin(),
+      [](unsigned char byte) { return static_cast<char>(std::tolower(byte)); });
+  return normalized == "truecolor" || normalized == "24bit";
+}
+
+std::optional<unsigned> parseUnsigned(std::string_view text, unsigned base,
+                                      unsigned maximum) noexcept {
+  if (text.empty()) {
+    return std::nullopt;
+  }
+  unsigned value = 0;
+  for (const char character : text) {
+    const auto byte = static_cast<unsigned char>(character);
+    unsigned digit = 0;
+    if (byte >= '0' && byte <= '9') {
+      digit = byte - '0';
+    } else if (base == 16 && byte >= 'a' && byte <= 'f') {
+      digit = byte - 'a' + 10U;
+    } else if (base == 16 && byte >= 'A' && byte <= 'F') {
+      digit = byte - 'A' + 10U;
+    } else {
+      return std::nullopt;
+    }
+    if (digit >= base || value > (maximum - digit) / base) {
+      return std::nullopt;
+    }
+    value = value * base + digit;
+  }
+  return value;
+}
+
+std::uint8_t scaleHexComponent(std::string_view component) noexcept {
+  const unsigned maximum = (1U << (component.size() * 4U)) - 1U;
+  const auto value = parseUnsigned(component, 16, maximum);
+  if (!value.has_value()) {
+    return 0;
+  }
+  return static_cast<std::uint8_t>((*value * 255U + maximum / 2U) / maximum);
+}
+
+std::optional<TerminalRgb> xtermIndexedColor(unsigned index) noexcept {
+  constexpr std::array<TerminalRgb, 16> kAnsiColors{{
+      {0, 0, 0},
+      {205, 0, 0},
+      {0, 205, 0},
+      {205, 205, 0},
+      {0, 0, 238},
+      {205, 0, 205},
+      {0, 205, 205},
+      {229, 229, 229},
+      {127, 127, 127},
+      {255, 0, 0},
+      {0, 255, 0},
+      {255, 255, 0},
+      {92, 92, 255},
+      {255, 0, 255},
+      {0, 255, 255},
+      {255, 255, 255},
+  }};
+  if (index < kAnsiColors.size()) {
+    return kAnsiColors[index];
+  }
+  if (index <= 231) {
+    constexpr std::array<std::uint8_t, 6> kCube{0, 95, 135, 175, 215, 255};
+    const unsigned cube = index - 16;
+    return TerminalRgb{kCube[cube / 36], kCube[(cube / 6) % 6],
+                       kCube[cube % 6]};
+  }
+  if (index <= 255) {
+    const auto gray = static_cast<std::uint8_t>(8 + (index - 232) * 10);
+    return TerminalRgb{gray, gray, gray};
+  }
+  return std::nullopt;
+}
+
+std::optional<TerminalRgb> colorFromColorFgbg(
+    std::optional<std::string> value) noexcept {
+  if (!value.has_value() || value->empty()) {
+    return std::nullopt;
+  }
+  const std::size_t separator = value->find_last_of(';');
+  const std::string_view background =
+      separator == std::string::npos
+          ? std::string_view(*value)
+          : std::string_view(*value).substr(separator + 1);
+  const auto index = parseUnsigned(background, 10, 255);
+  return index.has_value() ? xtermIndexedColor(*index) : std::nullopt;
+}
+
+unsigned xtermColorIndex(TerminalRgb color) noexcept {
+  unsigned best_index = 16;
+  unsigned best_distance = std::numeric_limits<unsigned>::max();
+  for (unsigned index = 16; index <= 255; ++index) {
+    const auto candidate = xtermIndexedColor(index);
+    if (!candidate.has_value()) {
+      continue;
+    }
+    const int red = static_cast<int>(candidate->red) - color.red;
+    const int green = static_cast<int>(candidate->green) - color.green;
+    const int blue = static_cast<int>(candidate->blue) - color.blue;
+    const unsigned distance =
+        static_cast<unsigned>(red * red + green * green + blue * blue);
+    if (distance < best_distance) {
+      best_distance = distance;
+      best_index = index;
+    }
+  }
+  return best_index;
+}
+
+std::string backgroundPrefix(TerminalRgb color, bool truecolor) {
+  if (truecolor) {
+    return "\x1b[48;2;" + std::to_string(color.red) + ";" +
+           std::to_string(color.green) + ";" + std::to_string(color.blue) + "m";
+  }
+  return "\x1b[48;5;" + std::to_string(xtermColorIndex(color)) + "m";
 }
 
 void appendUtf8(std::string& output, std::uint32_t value) {
@@ -622,7 +752,7 @@ std::string stylePrefix(const TerminalTextStyle& style,
   if (!policy.sgr_attributes) {
     return {};
   }
-  std::vector<std::string_view> codes;
+  std::vector<std::string> codes;
   if (style.bold) {
     codes.push_back("1");
   }
@@ -634,6 +764,25 @@ std::string stylePrefix(const TerminalTextStyle& style,
   }
   if (policy.color && (style.accent || style.code)) {
     codes.push_back("36");
+  }
+  if (policy.background.has_value()) {
+    if (policy.truecolor) {
+      codes.push_back("48");
+      codes.push_back("2");
+      codes.push_back(std::to_string(policy.background->red));
+      codes.push_back(std::to_string(policy.background->green));
+      codes.push_back(std::to_string(policy.background->blue));
+    } else {
+      codes.push_back("48");
+      codes.push_back("5");
+      codes.push_back(std::to_string(xtermColorIndex(*policy.background)));
+    }
+  }
+  const bool has_semantic_style =
+      style.bold || style.italic || style.strikethrough ||
+      (policy.color && (style.accent || style.code));
+  if (!has_semantic_style) {
+    return {};
   }
   if (codes.empty()) {
     return {};
@@ -661,7 +810,8 @@ void ensureTranscriptEnding(std::string& output) {
 TerminalCapabilities makeTerminalCapabilities(
     bool input_is_tty, bool output_is_tty, std::string_view term,
     std::optional<std::string_view> no_color, bool utf8,
-    std::optional<std::size_t> columns) noexcept {
+    std::optional<std::size_t> columns, bool truecolor,
+    std::optional<TerminalRgb> terminal_background) noexcept {
   TerminalCapabilities capabilities;
   capabilities.interactive_session = input_is_tty && output_is_tty;
   const bool vt_baseline =
@@ -672,6 +822,11 @@ TerminalCapabilities makeTerminalCapabilities(
   capabilities.color =
       vt_baseline && (!no_color.has_value() || no_color->empty());
   capabilities.utf8 = capabilities.interactive_session && utf8;
+  capabilities.truecolor = capabilities.color && truecolor;
+  if (capabilities.color && terminal_background.has_value()) {
+    capabilities.response_background =
+        lightenTerminalBackground(*terminal_background);
+  }
   if (output_is_tty && columns.has_value() && *columns > 0) {
     capabilities.columns = columns;
   }
@@ -686,13 +841,16 @@ TerminalCapabilities detectTerminalCapabilities(std::istream& in,
   const bool output_is_tty = standard_output && isatty(STDOUT_FILENO) != 0;
   const std::optional<std::string> term = environmentValue("TERM");
   const std::optional<std::string> no_color = environmentValue("NO_COLOR");
+  const auto terminal_background =
+      colorFromColorFgbg(environmentValue("COLORFGBG"));
   return makeTerminalCapabilities(
       input_is_tty, output_is_tty, term.value_or(""),
       no_color.has_value()
           ? std::optional<std::string_view>{std::string_view(*no_color)}
           : std::nullopt,
       localeIsUtf8(),
-      output_is_tty ? queryTerminalWidth(STDOUT_FILENO) : std::nullopt);
+      output_is_tty ? queryTerminalWidth(STDOUT_FILENO) : std::nullopt,
+      environmentSupportsTruecolor(), terminal_background);
 }
 
 std::optional<std::size_t> queryTerminalWidth(int fd) noexcept {
@@ -701,6 +859,151 @@ std::optional<std::size_t> queryTerminalWidth(int fd) noexcept {
     return std::nullopt;
   }
   return static_cast<std::size_t>(size.ws_col);
+}
+
+std::optional<TerminalRgb> parseTerminalBackgroundResponse(
+    std::string_view response) noexcept {
+  const std::size_t marker = response.find("]11;");
+  if (marker == std::string_view::npos) {
+    return std::nullopt;
+  }
+  const std::string_view payload = response.substr(marker + 4);
+  if (payload.size() >= 7 && payload.front() == '#') {
+    const auto red = parseUnsigned(payload.substr(1, 2), 16, 255);
+    const auto green = parseUnsigned(payload.substr(3, 2), 16, 255);
+    const auto blue = parseUnsigned(payload.substr(5, 2), 16, 255);
+    if (red.has_value() && green.has_value() && blue.has_value()) {
+      return TerminalRgb{static_cast<std::uint8_t>(*red),
+                         static_cast<std::uint8_t>(*green),
+                         static_cast<std::uint8_t>(*blue)};
+    }
+    return std::nullopt;
+  }
+  if (payload.size() < 4 || payload.substr(0, 4) != "rgb:") {
+    return std::nullopt;
+  }
+
+  const std::size_t first_slash = payload.find('/', 4);
+  const std::size_t second_slash = first_slash == std::string_view::npos
+                                       ? std::string_view::npos
+                                       : payload.find('/', first_slash + 1);
+  if (first_slash == std::string_view::npos ||
+      second_slash == std::string_view::npos) {
+    return std::nullopt;
+  }
+  std::size_t end = payload.find_first_of("\a\x1b", second_slash + 1);
+  if (end == std::string_view::npos) {
+    end = payload.size();
+  }
+  const std::string_view red = payload.substr(4, first_slash - 4);
+  const std::string_view green =
+      payload.substr(first_slash + 1, second_slash - first_slash - 1);
+  const std::string_view blue =
+      payload.substr(second_slash + 1, end - second_slash - 1);
+  const auto valid_component = [](std::string_view component) {
+    return !component.empty() && component.size() <= 4 &&
+           parseUnsigned(component, 16, (1U << (component.size() * 4U)) - 1U)
+               .has_value();
+  };
+  if (!valid_component(red) || !valid_component(green) ||
+      !valid_component(blue)) {
+    return std::nullopt;
+  }
+  return TerminalRgb{scaleHexComponent(red), scaleHexComponent(green),
+                     scaleHexComponent(blue)};
+}
+
+std::optional<TerminalRgb> queryTerminalBackground(int input_fd,
+                                                   int output_fd) noexcept {
+  if (input_fd < 0 || output_fd < 0 || isatty(input_fd) == 0 ||
+      isatty(output_fd) == 0) {
+    return std::nullopt;
+  }
+
+  termios original{};
+  if (tcgetattr(input_fd, &original) != 0) {
+    return std::nullopt;
+  }
+  termios query_mode = original;
+  query_mode.c_lflag &= static_cast<tcflag_t>(~(ICANON | ECHO));
+  query_mode.c_cc[VMIN] = 0;
+  query_mode.c_cc[VTIME] = 0;
+  if (tcsetattr(input_fd, TCSANOW, &query_mode) != 0) {
+    return std::nullopt;
+  }
+
+  constexpr std::string_view query = "\x1b]11;?\x1b\\";
+  std::size_t written = 0;
+  bool write_failed = false;
+  while (written < query.size()) {
+    const ssize_t result =
+        write(output_fd, query.data() + written, query.size() - written);
+    if (result > 0) {
+      written += static_cast<std::size_t>(result);
+    } else if (result < 0 && errno == EINTR) {
+      continue;
+    } else {
+      write_failed = true;
+      break;
+    }
+  }
+
+  std::optional<TerminalRgb> background;
+  std::array<char, kMaximumTerminalResponseBytes> response{};
+  std::size_t response_size = 0;
+  const auto deadline =
+      std::chrono::steady_clock::now() + std::chrono::milliseconds{100};
+  while (!write_failed && response_size < response.size()) {
+    const auto remaining =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            deadline - std::chrono::steady_clock::now());
+    if (remaining.count() <= 0) {
+      break;
+    }
+    pollfd descriptor{input_fd, POLLIN, 0};
+    const int poll_result =
+        poll(&descriptor, 1, static_cast<int>(remaining.count()));
+    if (poll_result == 0) {
+      break;
+    }
+    if (poll_result < 0) {
+      if (errno == EINTR) {
+        continue;
+      }
+      break;
+    }
+    const ssize_t count = read(input_fd, response.data() + response_size,
+                               response.size() - response_size);
+    if (count > 0) {
+      response_size += static_cast<std::size_t>(count);
+      background = parseTerminalBackgroundResponse(
+          std::string_view(response.data(), response_size));
+      if (background.has_value()) {
+        break;
+      }
+    } else if (count < 0 && errno == EINTR) {
+      continue;
+    } else {
+      break;
+    }
+  }
+
+  tcsetattr(input_fd, TCSANOW, &original);
+  return background;
+}
+
+TerminalRgb lightenTerminalBackground(TerminalRgb background) noexcept {
+  const auto lighten = [](std::uint8_t component) {
+    if (component == 255) {
+      return component;
+    }
+    const unsigned distance = 255U - component;
+    const unsigned increase = std::max(1U, (distance * 6U + 50U) / 100U);
+    return static_cast<std::uint8_t>(
+        std::min(255U, static_cast<unsigned>(component) + increase));
+  };
+  return {lighten(background.red), lighten(background.green),
+          lighten(background.blue)};
 }
 
 std::string sanitizeTerminalText(std::string_view text) {
@@ -796,8 +1099,13 @@ std::optional<TerminalDocument> parseMarkdown(std::string_view markdown) {
 std::string encodeTerminalDocument(const TerminalDocument& document,
                                    TerminalEncodingPolicy policy) {
   std::string output;
+  const std::string line_background =
+      policy.background.has_value()
+          ? backgroundPrefix(*policy.background, policy.truecolor)
+          : std::string{};
   for (std::size_t line_index = 0; line_index < document.lines.size();
        ++line_index) {
+    output += line_background;
     const auto& line = document.lines[line_index];
     for (const auto& run : line.runs) {
       const std::string prefix = stylePrefix(run.style, policy);
@@ -807,7 +1115,14 @@ std::string encodeTerminalDocument(const TerminalDocument& document,
       output += sanitizeTerminalText(run.text);
       if (!prefix.empty()) {
         output += "\x1b[0m";
+        output += line_background;
       }
+    }
+    if (!line_background.empty()) {
+      if (policy.erase_line) {
+        output += "\x1b[K";
+      }
+      output += "\x1b[0m";
     }
     if (line_index + 1 < document.lines.size()) {
       output.push_back('\n');
@@ -816,37 +1131,67 @@ std::string encodeTerminalDocument(const TerminalDocument& document,
   return output;
 }
 
-TranscriptRenderer::TranscriptRenderer(std::ostream& out,
-                                       TerminalCapabilities capabilities,
-                                       WidthQuery width_query)
+TranscriptRenderer::TranscriptRenderer(
+    std::ostream& out, TerminalCapabilities capabilities,
+    WidthQuery width_query, std::chrono::milliseconds spinner_interval)
     : out_(out),
       capabilities_(std::move(capabilities)),
-      width_query_(std::move(width_query)) {}
+      width_query_(std::move(width_query)),
+      spinner_interval_(
+          std::max(spinner_interval, std::chrono::milliseconds{1})) {}
 
 TranscriptRenderer::~TranscriptRenderer() noexcept { clearActivity(); }
 
-void TranscriptRenderer::showThinking() { writeActivity("Thinking...", false); }
+void TranscriptRenderer::showThinking() {
+  stopSpinner();
+  writeActivity("Thinking...", false);
+}
 
 void TranscriptRenderer::finishThinking(
     std::chrono::steady_clock::duration elapsed) {
+  std::lock_guard<std::mutex> lock(output_mutex_);
   if (!activity_visible_) {
     return;
   }
-  writeActivity("Thought for " + formatElapsed(elapsed) + ".", true);
+  writeActivityLocked("Thought for " + formatElapsed(elapsed) + ".", true);
 }
 
-void TranscriptRenderer::clearActivity() noexcept {
-  if (!activity_visible_) {
+void TranscriptRenderer::startSpinner() {
+  stopSpinner();
+  const auto width = currentWidth();
+  if (!capabilities_.interactive_session || !capabilities_.cursor_control ||
+      !capabilities_.erase_line || !width.has_value() || *width < 4) {
     return;
   }
-  try {
-    constexpr std::string_view clear = "\r\x1b[2K\x1b[0m";
-    out_.write(clear.data(), static_cast<std::streamsize>(clear.size()));
-    out_.flush();
-  } catch (...) {
+
+  {
+    std::lock_guard<std::mutex> lock(output_mutex_);
+    spinner_stop_requested_ = false;
+    writeActivityLocked(capabilities_.utf8 ? "\xE2\xA0\x8B" : "|", false);
   }
-  activity_visible_ = false;
+  try {
+    spinner_thread_ = std::thread(&TranscriptRenderer::runSpinner, this);
+  } catch (...) {
+    std::lock_guard<std::mutex> lock(output_mutex_);
+    spinner_stop_requested_ = true;
+    clearActivityLocked();
+  }
 }
+
+void TranscriptRenderer::stopSpinner() noexcept {
+  {
+    std::lock_guard<std::mutex> lock(output_mutex_);
+    spinner_stop_requested_ = true;
+  }
+  spinner_wakeup_.notify_all();
+  if (spinner_thread_.joinable()) {
+    spinner_thread_.join();
+  }
+  std::lock_guard<std::mutex> lock(output_mutex_);
+  clearActivityLocked();
+}
+
+void TranscriptRenderer::clearActivity() noexcept { stopSpinner(); }
 
 void TranscriptRenderer::renderAssistant(std::string_view markdown) {
   clearActivity();
@@ -857,7 +1202,10 @@ void TranscriptRenderer::renderAssistant(std::string_view markdown) {
       const auto document = parseMarkdown(sanitized);
       if (document.has_value()) {
         encoded = encodeTerminalDocument(
-            *document, {capabilities_.sgr_attributes, capabilities_.color});
+            *document, {capabilities_.sgr_attributes, capabilities_.color,
+                        capabilities_.color ? capabilities_.response_background
+                                            : std::nullopt,
+                        capabilities_.truecolor, capabilities_.erase_line});
       } else {
         encoded = sanitized;
       }
@@ -868,6 +1216,10 @@ void TranscriptRenderer::renderAssistant(std::string_view markdown) {
     encoded = sanitized;
   }
   ensureTranscriptEnding(encoded);
+  if (capabilities_.interactive_session) {
+    encoded.insert(encoded.begin(), '\n');
+  }
+  std::lock_guard<std::mutex> lock(output_mutex_);
   out_.write(encoded.data(), static_cast<std::streamsize>(encoded.size()));
   out_.flush();
 }
@@ -882,6 +1234,12 @@ std::optional<std::size_t> TranscriptRenderer::currentWidth() const {
 }
 
 void TranscriptRenderer::writeActivity(std::string_view text, bool permanent) {
+  std::lock_guard<std::mutex> lock(output_mutex_);
+  writeActivityLocked(text, permanent);
+}
+
+void TranscriptRenderer::writeActivityLocked(std::string_view text,
+                                             bool permanent) {
   if (!capabilities_.interactive_session || !capabilities_.cursor_control ||
       !capabilities_.erase_line) {
     return;
@@ -904,6 +1262,45 @@ void TranscriptRenderer::writeActivity(std::string_view text, bool permanent) {
   out_.write(output.data(), static_cast<std::streamsize>(output.size()));
   out_.flush();
   activity_visible_ = !permanent;
+}
+
+void TranscriptRenderer::clearActivityLocked() noexcept {
+  if (!activity_visible_) {
+    return;
+  }
+  try {
+    constexpr std::string_view clear = "\r\x1b[2K\x1b[0m";
+    out_.write(clear.data(), static_cast<std::streamsize>(clear.size()));
+    out_.flush();
+  } catch (...) {
+  }
+  activity_visible_ = false;
+}
+
+void TranscriptRenderer::runSpinner() noexcept {
+  constexpr std::array<std::string_view, 8> kUtf8Frames{
+      "\xE2\xA0\x8B", "\xE2\xA0\x99", "\xE2\xA0\xB9", "\xE2\xA0\xB8",
+      "\xE2\xA0\xBC", "\xE2\xA0\xB4", "\xE2\xA0\xA6", "\xE2\xA0\xA7"};
+  constexpr std::array<std::string_view, 4> kAsciiFrames{"|", "/", "-", "\\"};
+  std::size_t frame = 1;
+  std::unique_lock<std::mutex> lock(output_mutex_);
+  while (!spinner_stop_requested_) {
+    if (spinner_wakeup_.wait_for(lock, spinner_interval_,
+                                 [this] { return spinner_stop_requested_; })) {
+      break;
+    }
+    try {
+      if (capabilities_.utf8) {
+        writeActivityLocked(kUtf8Frames[frame % kUtf8Frames.size()], false);
+        frame = (frame + 1) % kUtf8Frames.size();
+      } else {
+        writeActivityLocked(kAsciiFrames[frame % kAsciiFrames.size()], false);
+        frame = (frame + 1) % kAsciiFrames.size();
+      }
+    } catch (...) {
+      spinner_stop_requested_ = true;
+    }
+  }
 }
 
 }  // namespace octopus

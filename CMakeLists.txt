@@ -63,6 +63,7 @@ endif()
 # find Catch2 - if configured Conan2 will be used as dependency provider
 find_package(Catch2 REQUIRED)
 find_package(md4c REQUIRED CONFIG)
+find_package(Threads REQUIRED)
 include(FetchContent)
 FetchContent_Declare(
         llama
@@ -98,7 +99,7 @@ add_library(octopus_cli_modes STATIC
 target_include_directories(octopus_cli_modes PUBLIC include PRIVATE src)
 target_compile_features(octopus_cli_modes PUBLIC cxx_std_17)
 target_link_libraries(octopus_cli_modes PUBLIC octopus_cli octopus_llm
-        PRIVATE md4c::md4c)
+        PRIVATE md4c::md4c Threads::Threads)
 target_compile_options(octopus_cli_modes PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 add_library(octopus_model_google_gemma STATIC

@@ -10,9 +10,9 @@ Current capabilities include:
   generation remains streamed internally;
 - a multi-turn conversation loop;
 - one-shot `ask` mode;
-- promptless interactive multiline editing with UTF-8 code-point cursor and
-  deletion behavior, terminal-width-aware redraw, paste, Ctrl+C cancellation,
-  and Ctrl+D exit;
+- `> ` interactive prompts and multiline editing with UTF-8 code-point cursor
+  and deletion behavior, terminal-width-aware redraw, paste, Ctrl+C
+  cancellation, and Ctrl+D exit;
 - a model-neutral runtime contract for prompt compilation, capabilities,
   inference, and assistant-response parsing;
 - an explicitly composed Google Gemma integration with GGUF chat-template
@@ -150,25 +150,36 @@ Start an interactive conversation:
 ./build/octo --model qwen35
 ```
 
-Interactive input begins at column 1 without a prompt or faint styling. During
-generation, Octopus shows one transient `Thinking...` line, replaces it with a
-permanent `Thought for <duration>.` summary, and then writes the complete parsed
-assistant response once. Raw generation chunks are not displayed. The final
-response supports headings, emphasis/strong text, lists and task items, inline
-and fenced code, links, block quotes, line breaks, autolinks, and
-strikethrough. It uses native terminal wrapping; there is no response gutter,
-manual response wrapping, alternate screen, cursor hiding, or OSC hyperlink.
-Tables receive no special layout, and raw HTML remains visible literal text.
-Cancellation clears the transient line and does not publish a partial answer
-or a successful duration summary.
+Interactive input uses a `> ` prompt (`... ` on continuation rows). During
+generation, Octopus shows an animated transient spinner and removes it before
+writing the complete parsed assistant response once. The dormant thinking and
+elapsed-time presentation path is retained for future structured thinking but
+is not displayed today. Raw generation chunks are not displayed. Exactly one
+blank row separates user input and assistant output in both directions.
+
+When terminal color discovery succeeds, each assistant response receives a
+full-width background slightly lighter than the terminal's own background.
+Octopus queries the terminal with OSC 11 and uses `COLORFGBG` when available;
+it emits truecolor when `COLORTERM` advertises it and otherwise chooses the
+nearest 256-color value. Unsupported terminals simply omit the response
+background rather than assuming a fixed color. The final response supports
+headings, emphasis/strong text, lists and task items, inline and fenced code,
+links, block quotes, line breaks, autolinks, and strikethrough. It uses native
+terminal wrapping; there is no response gutter, manual response wrapping,
+alternate screen, cursor hiding, or OSC hyperlink. Tables receive no special
+layout, and raw HTML remains visible literal text. Cancellation clears the
+spinner and does not publish a partial answer.
 
 Enhanced rendering requires TTY stdin and stdout, a non-empty `TERM` other than
-`dumb`, and a usable terminal width for transient activity. `TERM=dumb`, pipes,
-and redirects receive sanitized raw Markdown with no prompts, timing chrome,
-ANSI styling, or renderer-created line wrapping. A non-empty `NO_COLOR` removes
-color only; cursor updates and semantic bold/italic/strikethrough remain
-available. An empty `NO_COLOR` value does not disable color. Invalid UTF-8 and
-model-provided terminal control bytes are sanitized before output.
+`dumb`, and a usable terminal width for transient activity. `TERM=dumb` keeps
+the TTY prompt and blank-row transcript spacing but omits activity and ANSI
+styling. Pipes and redirects receive sanitized raw Markdown with no prompts,
+activity, ANSI styling, or renderer-created line wrapping. A non-empty
+`NO_COLOR` removes semantic and response-background color only; cursor updates
+and semantic bold/italic/strikethrough remain available. An empty `NO_COLOR`
+value does not disable color. Invalid UTF-8, model-provided terminal control
+bytes, and delayed terminal color-query replies are filtered before output or
+input submission.
 
 Precomposed accented input is supported for insertion, cursor movement, and
 deletion. Full grapheme-cluster editing for combining sequences and emoji is a

@@ -238,6 +238,10 @@ TerminalInputEvent TerminalLineEditor::feed(char byte) {
         escape_state_ = EscapeState::Ss3;
         return {};
       }
+      if (byte == ']') {
+        escape_state_ = EscapeState::OperatingSystemCommand;
+        return {};
+      }
       if (byte == 'b' || byte == 'B') {
         moveWordLeft();
         resetEscape();
@@ -292,6 +296,20 @@ TerminalInputEvent TerminalLineEditor::feed(char byte) {
         deleteAtCursor();
       }
       resetEscape();
+      return {};
+    case EscapeState::OperatingSystemCommand:
+      if (byte == '\x07') {
+        resetEscape();
+      } else if (byte == kEscape) {
+        escape_state_ = EscapeState::OperatingSystemCommandEscape;
+      }
+      return {};
+    case EscapeState::OperatingSystemCommandEscape:
+      if (byte == '\\') {
+        resetEscape();
+      } else if (byte != kEscape) {
+        escape_state_ = EscapeState::OperatingSystemCommand;
+      }
       return {};
     case EscapeState::None:
       break;

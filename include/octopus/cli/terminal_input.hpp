@@ -41,6 +41,8 @@ class TerminalLineEditor {
     Ss3,
     ControlSequence,
     DeleteSequence,
+    OperatingSystemCommand,
+    OperatingSystemCommandEscape,
   };
 
   TerminalInputEvent handleEnter();

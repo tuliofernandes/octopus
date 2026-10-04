@@ -17,6 +17,9 @@
 namespace octopus {
 namespace {
 
+constexpr const char* kUserPrompt = "> ";
+constexpr const char* kContinuationPrompt = "... ";
+
 volatile std::sig_atomic_t g_generation_cancelled = 0;
 
 void handleGenerationSigint(int) { g_generation_cancelled = 1; }
@@ -80,6 +83,16 @@ ChatRunResult runCliChat(const CliOptions& options, llm::Runtime& runtime,
   if (&out == &std::cout) {
     presentation.width_query = [] { return queryTerminalWidth(STDOUT_FILENO); };
   }
+  if (&in == &std::cin && &out == &std::cout &&
+      presentation.capabilities.color &&
+      !presentation.capabilities.response_background.has_value()) {
+    const auto background =
+        queryTerminalBackground(STDIN_FILENO, STDOUT_FILENO);
+    if (background.has_value()) {
+      presentation.capabilities.response_background =
+          lightenTerminalBackground(*background);
+    }
+  }
   return runCliChat(options, runtime, in, out, err, std::move(presentation));
 }
 
@@ -88,7 +101,12 @@ ChatRunResult runCliChat(const CliOptions& options, llm::Runtime& runtime,
                          ChatPresentation presentation) {
   ChatRunResult result;
   llm::Conversation conversation;
-  InputEditor input_editor(in, out, {"", ""});
+  const bool interactive_session =
+      presentation.capabilities.interactive_session;
+  InputEditor input_editor(
+      in, out,
+      interactive_session ? InputEditorPrompts{kUserPrompt, kContinuationPrompt}
+                          : InputEditorPrompts{});
   TranscriptRenderer renderer(out, std::move(presentation.capabilities),
                               std::move(presentation.width_query));
   bool previous_input_cancelled = false;
@@ -117,8 +135,7 @@ ChatRunResult runCliChat(const CliOptions& options, llm::Runtime& runtime,
         makeConversationRequest(options, conversation);
     ScopedGenerationCancelHandler cancel_handler;
     request.cancellation = &cancel_handler.token();
-    const auto started_at = presentation.now();
-    renderer.showThinking();
+    renderer.startSpinner();
     auto completion = runtime.completeStreaming(request, sink);
 
     if (completionFailed(completion)) {
@@ -135,7 +152,7 @@ ChatRunResult runCliChat(const CliOptions& options, llm::Runtime& runtime,
       continue;
     }
 
-    renderer.finishThinking(presentation.now() - started_at);
+    renderer.stopSpinner();
     renderer.renderAssistant(completion.value().response.text);
     renderer.finishTurn();
     conversation.messages.push_back(
