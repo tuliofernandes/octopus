@@ -42,7 +42,7 @@ response contracts.
 ./build/octo --model gemma ask "Say hello."
 ```
 
-`--model` must precede `ask`. Model path, backend, GPU layers, 512-token output
+`--model` must precede `ask`. Model path, backend, GPU layers, 4096-token output
 limit, and deterministic sampling are currently internal; there are no public
 flags for them.
 

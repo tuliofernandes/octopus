@@ -19,7 +19,7 @@ struct CliOptions {
   CliMode mode = CliMode::Interactive;
   CliModel model = CliModel::Gemma;
   std::string prompt;
-  int n_predict = 512;
+  int n_predict = 4096;
   int n_gpu_layers = 99;
   bool quiet = true;
 };

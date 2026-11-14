@@ -14,7 +14,7 @@ TEST_CASE("CLI defaults to interactive chat mode without model flags",
   CHECK(result.options.mode == octopus::CliMode::Interactive);
   CHECK(result.options.model == octopus::CliModel::Gemma);
   CHECK(result.options.prompt.empty());
-  CHECK(result.options.n_predict == 512);
+  CHECK(result.options.n_predict == 4096);
   CHECK(result.options.n_gpu_layers == 99);
   CHECK(result.options.quiet);
   CHECK(result.error.empty());
@@ -29,7 +29,7 @@ TEST_CASE("CLI parses one-shot ask prompts with the default model", "[cli]") {
   CHECK(result.options.mode == octopus::CliMode::Ask);
   CHECK(result.options.prompt == "Who was John Kennedy?");
   CHECK(result.options.model == octopus::CliModel::Gemma);
-  CHECK(result.options.n_predict == 512);
+  CHECK(result.options.n_predict == 4096);
   CHECK(result.options.n_gpu_layers == 99);
   CHECK(result.options.quiet);
 }

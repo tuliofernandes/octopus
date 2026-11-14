@@ -29,7 +29,7 @@ enum class SamplerProfile {
 };
 
 struct GenerationOptions {
-  int max_tokens = 512;
+  int max_tokens = 4096;
   SamplerProfile sampler_profile = SamplerProfile::Deterministic;
   int repeat_last_n = 0;
   float repeat_penalty = 1.0F;

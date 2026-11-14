@@ -54,7 +54,7 @@ and response contracts.
 ./build/octo --model qwen35 ask "Say hello."
 ```
 
-`--model` must precede `ask`. Model path, backend, GPU layers, 512-token output
+`--model` must precede `ask`. Model path, backend, GPU layers, 4096-token output
 limit, deterministic sampling, and reasoning policy are currently internal;
 there are no public flags for them. Qwen is not the default because the frozen
 CPU long-context promotion gate failed.
