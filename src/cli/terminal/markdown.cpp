@@ -128,8 +128,8 @@ bool lineEmpty(const TerminalLine& line) noexcept { return line.runs.empty(); }
 
 class MarkdownBuilder final {
  public:
-  explicit MarkdownBuilder(std::optional<std::size_t> columns)
-      : columns_(columns) {}
+  explicit MarkdownBuilder(std::optional<std::size_t> columns, bool utf8)
+      : columns_(columns), utf8_(utf8) {}
   int enterBlock(MD_BLOCKTYPE type, void* detail) {
     switch (type) {
       case MD_BLOCK_DOC:
@@ -175,6 +175,7 @@ class MarkdownBuilder final {
           return fail();
         }
         ++heading_depth_;
+        ensureLinePrefix();
         break;
       case MD_BLOCK_CODE:
         separateBlock();
@@ -182,6 +183,7 @@ class MarkdownBuilder final {
           return fail();
         }
         ++code_depth_;
+        ensureLinePrefix();
         break;
       case MD_BLOCK_P:
         if (list_item_depth_ == 0) {
@@ -393,8 +395,11 @@ class MarkdownBuilder final {
     const std::string_view value(text == nullptr ? "" : text, size);
     switch (type) {
       case MD_TEXT_NORMAL:
+        appendText(value, false);
+        break;
       case MD_TEXT_CODE:
-        appendText(value, type == MD_TEXT_CODE);
+        ensureLinePrefix();
+        appendText(value, true);
         break;
       case MD_TEXT_NULLCHAR:
         appendRun(std::string(kReplacementCharacter), currentStyle());
@@ -493,6 +498,42 @@ class MarkdownBuilder final {
   }
 
   void finishLine() {
+    const std::string prefix = quotePrefix();
+    if (prefix.empty() || !columns_.has_value() ||
+        *columns_ <= quote_depth_ + 1 || code_depth_ > 0 || rendering_table_ ||
+        current_.runs.empty() ||
+        current_.runs.front().text.compare(0, prefix.size(), prefix) != 0) {
+      document_.lines.push_back(std::move(current_));
+      current_ = {};
+      return;
+    }
+    auto original = std::move(current_);
+    current_ = {};
+    addQuotePrefix();
+    std::size_t line_width = quote_depth_ + 1;
+    bool has_content = false;
+    for (std::size_t i = 0; i < original.runs.size(); ++i) {
+      const auto& run = original.runs[i];
+      std::size_t offset = i == 0 ? prefix.size() : 0;
+      while (offset < run.text.size()) {
+        const auto cp = cli_detail::decodeCodePoint(run.text, offset);
+        const std::size_t bytes = cp.valid ? cp.bytes : 1;
+        const std::size_t width =
+            cp.valid ? cli_detail::terminalCellWidth(cp.value) : 1;
+        if (has_content &&
+            (line_width >= *columns_ || width > *columns_ - line_width)) {
+          document_.lines.push_back(std::move(current_));
+          current_ = {};
+          addQuotePrefix();
+          line_width = quote_depth_ + 1;
+          has_content = false;
+        }
+        appendRun(run.text.substr(offset, bytes), run.style);
+        line_width += width;
+        has_content = true;
+        offset += bytes;
+      }
+    }
     document_.lines.push_back(std::move(current_));
     current_ = {};
   }
@@ -502,7 +543,13 @@ class MarkdownBuilder final {
       finishLine();
     }
     if (!document_.lines.empty() && !lineEmpty(document_.lines.back())) {
-      document_.lines.push_back({});
+      TerminalLine separator;
+      if (quote_depth_ > 0) {
+        auto prefix = quotePrefix();
+        prefix.pop_back();
+        separator.runs.push_back({std::move(prefix), {}});
+      }
+      document_.lines.push_back(std::move(separator));
     }
   }
 
@@ -512,11 +559,14 @@ class MarkdownBuilder final {
     }
   }
 
-  void addQuotePrefix() {
-    if (quote_depth_ > 0) {
-      appendRun(std::string(quote_depth_, '>') + " ", {});
-    }
+  std::string quotePrefix() const {
+    if (quote_depth_ == 0) return {};
+    std::string prefix;
+    for (std::size_t i = 0; i < quote_depth_; ++i) prefix += utf8_ ? "│" : "|";
+    return prefix + " ";
   }
+
+  void addQuotePrefix() { appendRun(quotePrefix(), {}); }
 
   void ensureLinePrefix() {
     if (lineEmpty(current_)) {
@@ -549,6 +599,7 @@ class MarkdownBuilder final {
   };
 
   void finishTable() {
+    rendering_table_ = true;
     std::vector<std::size_t> widths;
     for (const auto& row : table_rows_) {
       if (widths.size() < row.size()) widths.resize(row.size(), 0);
@@ -598,12 +649,15 @@ class MarkdownBuilder final {
       }
     }
     table_rows_.clear();
+    rendering_table_ = false;
   }
 
   std::vector<std::vector<TableCell>> table_rows_;
   MD_ALIGN cell_alignment_ = MD_ALIGN_DEFAULT;
   std::size_t table_cell_count_ = 0;
   std::optional<std::size_t> columns_;
+  bool utf8_ = true;
+  bool rendering_table_ = false;
   TerminalDocument document_;
   TerminalLine current_;
   std::vector<ListState> lists_;
@@ -667,13 +721,13 @@ int renderText(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size,
 }  // namespace
 
 std::optional<TerminalDocument> parseMarkdown(
-    std::string_view markdown, std::optional<std::size_t> columns) {
+    std::string_view markdown, std::optional<std::size_t> columns, bool utf8) {
   if (markdown.size() > kMaximumMarkdownBytes ||
       markdown.size() > std::numeric_limits<MD_SIZE>::max()) {
     return std::nullopt;
   }
 
-  MarkdownBuilder builder(columns);
+  MarkdownBuilder builder(columns, utf8);
   MD_PARSER parser{};
   parser.abi_version = 0;
   parser.flags = MD_FLAG_NOHTMLBLOCKS | MD_FLAG_NOHTMLSPANS |

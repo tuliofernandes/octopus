@@ -89,7 +89,8 @@ void TranscriptRenderer::renderAssistant(std::string_view markdown) {
   std::string encoded;
   if (capabilities_.interactive_session && capabilities_.sgr_attributes) {
     try {
-      const auto document = parseMarkdown(sanitized, currentWidth());
+      const auto document =
+          parseMarkdown(sanitized, currentWidth(), capabilities_.utf8);
       if (document.has_value()) {
         encoded = encodeTerminalDocument(
             *document, {capabilities_.sgr_attributes, capabilities_.color,

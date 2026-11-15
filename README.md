@@ -146,8 +146,9 @@ when available; it emits truecolor when `COLORTERM` advertises it and otherwise
 chooses a distinct nearby 256-color value. Unsupported terminals simply omit
 the response background rather than assuming a fixed color. The final response
 supports headings, emphasis/strong text, lists and task items, inline and
-fenced code, links, block quotes, line breaks, autolinks, and strikethrough. It
-uses native
+fenced code, links, block quotes, line breaks, autolinks, and strikethrough.
+Block quotes use vertical bars on each line, including wrapped lines; terminals
+without UTF-8 use ASCII bars. Other content uses native
 terminal wrapping; there is no response gutter, manual response wrapping,
 alternate screen, cursor hiding, or OSC hyperlink. Tables are aligned when they
 fit the terminal; wider tables retain their rows and use native wrapping. A

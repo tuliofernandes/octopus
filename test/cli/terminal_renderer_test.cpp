@@ -321,7 +321,7 @@ TEST_CASE("Markdown adapter owns semantic content for completed documents",
   CHECK(plain.find("An emphasis and strong with code and site "
                    "(https://example.com).") != std::string::npos);
   CHECK(plain.find("- first\n- second") != std::string::npos);
-  CHECK(plain.find("> quote") != std::string::npos);
+  CHECK(plain.find("│ quote") != std::string::npos);
   CHECK(plain.find("int main() {}") != std::string::npos);
 }
 
@@ -494,7 +494,7 @@ TEST_CASE("tables retain list nesting and quote prefixes",
       "> | abc | x |\n> | --- | --- |\n> | d | e |\n", 12);
   REQUIRE(quote.has_value());
   const auto quoted = octopus::encodeTerminalDocument(*quote, {false, false});
-  CHECK(quoted.find("> | d | e |") != std::string::npos);
+  CHECK(quoted.find("│ | d | e |") != std::string::npos);
 }
 
 TEST_CASE("excessive table expansion falls back to raw Markdown",
@@ -537,4 +537,52 @@ TEST_CASE("named entities cannot inject terminal control characters",
       octopus::encodeTerminalDocument(*document, {true, false});
   CHECK(encoded.find('\x1b') == std::string::npos);
   CHECK(encoded.find("safe &bogus;") != std::string::npos);
+}
+
+TEST_CASE("quote bars continue across hard and terminal-width line breaks",
+          "[terminal-renderer]") {
+  const auto document = octopus::parseMarkdown(
+      "> First line  \n> Second line\n\n> **abcdefghijk**", 8);
+  REQUIRE(document.has_value());
+  const auto plain = octopus::encodeTerminalDocument(*document, {false, false});
+  CHECK(plain.find("│ First ") != std::string::npos);
+  CHECK(plain.find("\n│ line") != std::string::npos);
+  CHECK(plain.find("│ abcdef\n│ ghijk") != std::string::npos);
+  const auto styled = octopus::encodeTerminalDocument(*document, {true, false});
+  CHECK(styled.find("\x1b[1mabcdef\x1b[0m") != std::string::npos);
+}
+
+TEST_CASE("quote bars degrade to ASCII without UTF-8", "[terminal-renderer]") {
+  RecordingBuffer buffer;
+  std::ostream out(&buffer);
+  auto capabilities = enhancedCapabilities();
+  capabilities.utf8 = false;
+  octopus::TranscriptRenderer renderer(out, capabilities);
+  renderer.renderAssistant("> hello");
+  CHECK(buffer.text.find("| hello") != std::string::npos);
+  CHECK(buffer.text.find("│") == std::string::npos);
+}
+
+TEST_CASE("nested quotes retain bars across Unicode and code lines",
+          "[terminal-renderer]") {
+  const auto document = octopus::parseMarkdown(
+      "> > 猫猫猫\n> >\n> > ```\n> > one\n> > two\n> > ```", 7);
+  REQUIRE(document.has_value());
+  const auto plain = octopus::encodeTerminalDocument(*document, {false, false});
+  CHECK(plain.find("││ 猫猫\n││ 猫") != std::string::npos);
+  CHECK(plain.find("││ one\n││ two") != std::string::npos);
+}
+
+TEST_CASE("blank lines between quoted paragraphs retain their bars",
+          "[terminal-renderer]") {
+  const auto document = octopus::parseMarkdown(
+      "> First paragraph.\n>\n> Second paragraph.\n\nOutside.\n");
+  REQUIRE(document.has_value());
+  const auto plain = octopus::encodeTerminalDocument(*document, {false, false});
+  CHECK(plain == "│ First paragraph.\n│\n│ Second paragraph.\n\nOutside.");
+  const auto ascii =
+      octopus::parseMarkdown("> First.\n>\n> Second.\n", std::nullopt, false);
+  REQUIRE(ascii.has_value());
+  CHECK(octopus::encodeTerminalDocument(*ascii, {false, false}) ==
+        "| First.\n|\n| Second.");
 }

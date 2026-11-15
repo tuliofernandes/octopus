@@ -113,7 +113,7 @@ struct TerminalEncodingPolicy {
 
 std::optional<TerminalDocument> parseMarkdown(
     std::string_view markdown,
-    std::optional<std::size_t> columns = std::nullopt);
+    std::optional<std::size_t> columns = std::nullopt, bool utf8 = true);
 std::string encodeTerminalDocument(const TerminalDocument& document,
                                    TerminalEncodingPolicy policy);
 
