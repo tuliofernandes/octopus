@@ -5,18 +5,19 @@
 #include <stdexcept>
 #include <utility>
 namespace octopus::tool {
-bool Registry::add(Definition definition, Handler handler) {
-  const nlohmann::json schema = {{"type", "object"},
-                                 {"properties", nlohmann::json::object()},
-                                 {"additionalProperties", false}};
+bool Registry::add(Definition definition, Handler handler,
+                   ArgumentValidator validator) {
   static const std::regex identifier("[a-z][a-z0-9_]*");
-  if (!handler || !std::regex_match(definition.category, identifier) ||
+  if (!handler || !validator ||
+      !std::regex_match(definition.category, identifier) ||
       !std::regex_match(definition.name, identifier) ||
-      definition.description.empty() || definition.parameters != schema)
+      definition.description.empty() || !definition.parameters.is_object() ||
+      definition.parameters.value("type", nlohmann::json()) != "object")
     return false;
   const auto identity = definition.identity();
   return entries_
-      .emplace(identity, Entry{std::move(definition), std::move(handler)})
+      .emplace(identity, Entry{std::move(definition), std::move(handler),
+                               std::move(validator)})
       .second;
 }
 const Entry* Registry::find(const std::string& identity) const {
@@ -31,25 +32,32 @@ std::vector<Definition> Registry::definitions() const {
 }
 void registerBuiltins(Registry& registry, const std::filesystem::path& root) {
   auto definition = loadManifest(root, "misc", "hello_world");
-  if (!registry.add(std::move(definition), [](const nlohmann::json&,
-                                              const core::CancellationToken*) {
-        std::random_device seed;
-        std::mt19937 generator(seed());
-        std::uniform_int_distribution<int> distribution(1000, 99999);
-        return "Hello, world! Random number " +
-               std::to_string(distribution(generator));
-      }))
+  if (!registry.add(
+          std::move(definition),
+          [](const nlohmann::json&, const core::CancellationToken*) {
+            std::random_device seed;
+            std::mt19937 generator(seed());
+            std::uniform_int_distribution<int> distribution(1000, 99999);
+            return "Hello, world! Random number " +
+                   std::to_string(distribution(generator));
+          },
+          [](const nlohmann::json& args) -> std::string {
+            return args.is_object() && args.empty()
+                       ? ""
+                       : "expected an empty object";
+          }))
     throw std::runtime_error("failed to register misc.hello_world");
 }
 Result Executor::execute(const Call& call,
                          const core::CancellationToken* cancellation) const {
   const auto* entry = registry_.find(call.identity);
   if (!entry) return {call.id, Status::UnknownTool, "unknown tool"};
-  if (!call.arguments.is_object() || !call.arguments.empty())
-    return {call.id, Status::InvalidArguments, "expected an empty object"};
   if (cancellation && cancellation->isCancellationRequested())
     return {call.id, Status::Cancelled, "cancelled"};
   try {
+    auto diagnostic = entry->validator(call.arguments);
+    if (!diagnostic.empty())
+      return {call.id, Status::InvalidArguments, std::move(diagnostic)};
     auto decision = policy_.authorize(entry->definition, call);
     if (!decision.allowed)
       return {call.id, Status::Denied, std::move(decision.reason)};

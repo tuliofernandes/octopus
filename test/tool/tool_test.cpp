@@ -6,6 +6,10 @@
 #include <fstream>
 using namespace octopus::tool;
 
+static std::string validateEmpty(const nlohmann::json& args) {
+  return args.is_object() && args.empty() ? "" : "expected an empty object";
+}
+
 const nlohmann::json kSchema = {{"type", "object"},
                                 {"properties", nlohmann::json::object()},
                                 {"additionalProperties", false}};
@@ -14,12 +18,15 @@ TEST_CASE("registry validates dispatch and authorizes calls") {
   Registry registry;
   int calls = 0;
   Definition def{"misc", "hello", "greeting", kSchema, {}};
-  REQUIRE(registry.add(def, [&](const auto&, const auto*) {
-    ++calls;
-    return "hello";
-  }));
-  REQUIRE_FALSE(
-      registry.add(def, [](const auto&, const auto*) { return "other"; }));
+  REQUIRE(registry.add(
+      def,
+      [&](const auto&, const auto*) {
+        ++calls;
+        return "hello";
+      },
+      validateEmpty));
+  REQUIRE_FALSE(registry.add(
+      def, [](const auto&, const auto*) { return "other"; }, validateEmpty));
   AllowAllSecurityPolicy policy;
   Executor executor(registry, policy);
   auto good = executor.execute({"one", "misc.hello", nlohmann::json::object()});
@@ -54,11 +61,13 @@ TEST_CASE("security denial and cancellation prevent invocation") {
   } cancel;
   Registry registry;
   int calls = 0;
-  REQUIRE(registry.add({"misc", "hello", "greeting", kSchema, {}},
-                       [&](const auto&, const auto*) {
-                         ++calls;
-                         return "hello";
-                       }));
+  REQUIRE(registry.add(
+      {"misc", "hello", "greeting", kSchema, {}},
+      [&](const auto&, const auto*) {
+        ++calls;
+        return "hello";
+      },
+      validateEmpty));
   Executor executor(registry, deny);
   auto denied =
       executor.execute({"one", "misc.hello", nlohmann::json::object()});
@@ -75,6 +84,11 @@ TEST_CASE("real builtin returns a greeting and an in-range number") {
   registerBuiltins(registry, TOOL_RESOURCE_ROOT);
   AllowAllSecurityPolicy policy;
   Executor executor(registry, policy);
+  CHECK(
+      executor.execute({"bad", "misc.hello_world", {{"extra", true}}}).status ==
+      Status::InvalidArguments);
+  CHECK(executor.execute({"bad", "misc.hello_world", 42}).status ==
+        Status::InvalidArguments);
   auto result = executor.execute(
       {"pilot-1", "misc.hello_world", nlohmann::json::object()});
   REQUIRE(result.status == Status::Success);
@@ -97,12 +111,15 @@ TEST_CASE("policy and handler errors retain call correlation") {
   } failing;
   Registry registry;
   int calls = 0;
-  REQUIRE_FALSE(registry.add({"misc", "bad", "bad", kSchema, {}}, {}));
-  REQUIRE(registry.add({"misc", "bad", "bad", kSchema, {}},
-                       [&](const auto&, const auto*) -> std::string {
-                         ++calls;
-                         throw std::runtime_error("handler failed");
-                       }));
+  REQUIRE_FALSE(
+      registry.add({"misc", "bad", "bad", kSchema, {}}, {}, validateEmpty));
+  REQUIRE(registry.add(
+      {"misc", "bad", "bad", kSchema, {}},
+      [&](const auto&, const auto*) -> std::string {
+        ++calls;
+        throw std::runtime_error("handler failed");
+      },
+      validateEmpty));
   Executor no_dispatch(registry, failing);
   auto failure =
       no_dispatch.execute({"id1", "misc.bad", nlohmann::json::object()});
@@ -136,7 +153,7 @@ TEST_CASE(
       R"({"schema_version":2,"name":"hello","category":"misc","description":"x","parameters":{"type":"object","properties":{},"additionalProperties":false},"permissions":[]})");
   CHECK_THROWS(loadManifest(root, "misc", "hello"));
   write(
-      R"({"schema_version":1,"name":"hello","category":"misc","description":"x","parameters":{"type":"object"},"permissions":[]})");
+      R"({"schema_version":1,"name":"hello","category":"misc","description":"x","parameters":{"type":"string"},"permissions":[]})");
   CHECK_THROWS(loadManifest(root, "misc", "hello"));
   CHECK_THROWS(loadManifest(root, "../misc", "hello"));
   fs::remove_all(root);
@@ -154,11 +171,13 @@ TEST_CASE("valid executions consult security with exact call before dispatch") {
     }
   } policy;
   Registry registry;
-  REQUIRE(registry.add({"misc", "hello", "greeting", kSchema, {"read"}},
-                       [&](const auto&, const auto*) {
-                         REQUIRE(policy.id == "id");
-                         return "ok";
-                       }));
+  REQUIRE(registry.add(
+      {"misc", "hello", "greeting", kSchema, {"read"}},
+      [&](const auto&, const auto*) {
+        REQUIRE(policy.id == "id");
+        return "ok";
+      },
+      validateEmpty));
   const auto result =
       Executor(registry, policy)
           .execute({"id", "misc.hello", nlohmann::json::object()});
@@ -174,11 +193,13 @@ TEST_CASE(
     bool isCancellationRequested() const noexcept override { return cancelled; }
   } cancel;
   Registry registry;
-  REQUIRE(registry.add({"misc", "done", "done", kSchema, {}},
-                       [&](const auto&, const auto*) {
-                         cancel.cancelled = true;
-                         return "completed";
-                       }));
+  REQUIRE(registry.add(
+      {"misc", "done", "done", kSchema, {}},
+      [&](const auto&, const auto*) {
+        cancel.cancelled = true;
+        return "completed";
+      },
+      validateEmpty));
   AllowAllSecurityPolicy allow;
   const auto result =
       Executor(registry, allow)
@@ -200,10 +221,12 @@ TEST_CASE("resource root works independently of current working directory") {
 
 TEST_CASE("registry refuses unsupported schemas and malformed identities") {
   Registry registry;
-  CHECK_FALSE(registry.add({"../misc", "bad", "x", {}, {}},
-                           [](const auto&, const auto*) { return "x"; }));
-  CHECK_FALSE(registry.add({"misc", "bad", "x", {{"type", "string"}}, {}},
-                           [](const auto&, const auto*) { return "x"; }));
+  CHECK_FALSE(registry.add(
+      {"../misc", "bad", "x", {}, {}},
+      [](const auto&, const auto*) { return "x"; }, validateEmpty));
+  CHECK_FALSE(registry.add(
+      {"misc", "bad", "x", {{"type", "string"}}, {}},
+      [](const auto&, const auto*) { return "x"; }, validateEmpty));
   CHECK(registry.find("misc.bad") == nullptr);
 }
 
@@ -222,4 +245,77 @@ TEST_CASE("tool resources resolve from build and installed executables") {
   REQUIRE(octopus::tool::resourceRoot((root / "install/bin/octo").string()) ==
           root / "install/share/octopus/tools");
   fs::remove_all(root);
+}
+
+TEST_CASE(
+    "tool-specific validators accept or reject arguments before dispatch") {
+  Registry registry;
+  int calls = 0;
+  const nlohmann::json schema = {
+      {"type", "object"},
+      {"properties", {{"path", {{"type", "string"}}}}},
+      {"required", {"path"}}};
+  auto validate = [](const nlohmann::json& args) -> std::string {
+    if (!args.is_object() || !args.contains("path") ||
+        !args["path"].is_string())
+      return "path must be a string";
+    return {};
+  };
+  REQUIRE(registry.add(
+      {"fs", "read", "read", schema, {}},
+      [&](const auto& args, const auto*) {
+        ++calls;
+        return args.at("path").template get<std::string>();
+      },
+      validate));
+  AllowAllSecurityPolicy policy;
+  Executor executor(registry, policy);
+  auto valid = executor.execute({"one", "fs.read", {{"path", "file.txt"}}});
+  CHECK(valid.status == Status::Success);
+  CHECK(valid.output == "file.txt");
+  auto invalid = executor.execute({"two", "fs.read", {{"path", 42}}});
+  CHECK(invalid.status == Status::InvalidArguments);
+  CHECK(invalid.output == "path must be a string");
+  CHECK(invalid.call_id == "two");
+  CHECK(calls == 1);
+}
+
+TEST_CASE("manifest supports object schemas with declared parameters") {
+  namespace fs = std::filesystem;
+  const auto root =
+      fs::temp_directory_path() / "octopus-parameter-manifest-test";
+  fs::create_directories(root / "fs/read");
+  {
+    std::ofstream file(root / "fs/read/manifest.json");
+    file
+        << R"({"schema_version":1,"category":"fs","name":"read","description":"read file","parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]},"permissions":[]})";
+  }
+  const auto definition = loadManifest(root, "fs", "read");
+  CHECK(definition.parameters.at("properties").at("path").at("type") ==
+        "string");
+  fs::remove_all(root);
+}
+
+TEST_CASE(
+    "registry requires a validator and validator failures prevent execution") {
+  Registry registry;
+  int calls = 0;
+  auto handler = [&](const auto&, const auto*) {
+    ++calls;
+    return "ok";
+  };
+  Definition def{"misc", "test", "test", kSchema, {}};
+  CHECK_FALSE(registry.add(def, handler, {}));
+  CHECK(registry.find("misc.test") == nullptr);
+  REQUIRE(registry.add(def, handler, [](const auto&) -> std::string {
+    throw std::runtime_error("validator failed");
+  }));
+  AllowAllSecurityPolicy policy;
+  const auto result =
+      Executor(registry, policy)
+          .execute({"id", "misc.test", nlohmann::json::object()});
+  CHECK(result.status == Status::Failure);
+  CHECK(result.output == "validator failed");
+  CHECK(result.call_id == "id");
+  CHECK(calls == 0);
 }

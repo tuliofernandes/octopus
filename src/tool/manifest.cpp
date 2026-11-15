@@ -25,11 +25,9 @@ Definition loadManifest(const std::filesystem::path& root,
                    data.at("permissions").get<std::vector<std::string>>()};
     if (def.category != category || def.name != name || def.description.empty())
       throw std::runtime_error("invalid manifest identity or description");
-    const nlohmann::json expected = {{"type", "object"},
-                                     {"properties", nlohmann::json::object()},
-                                     {"additionalProperties", false}};
-    if (def.parameters != expected)
-      throw std::runtime_error("unsupported parameter schema");
+    if (!def.parameters.is_object() ||
+        def.parameters.value("type", nlohmann::json()) != "object")
+      throw std::runtime_error("parameters must be an object schema");
     return def;
   } catch (const std::exception& e) {
     throw std::runtime_error("invalid manifest " + path.string() + ": " +

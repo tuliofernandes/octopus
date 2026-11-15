@@ -35,13 +35,16 @@ struct Result {
 };
 using Handler = std::function<std::string(const nlohmann::json&,
                                           const core::CancellationToken*)>;
+// Returns an empty string for valid arguments or a diagnostic otherwise.
+using ArgumentValidator = std::function<std::string(const nlohmann::json&)>;
 struct Entry {
   Definition definition;
   Handler handler;
+  ArgumentValidator validator;
 };
 class Registry {
  public:
-  bool add(Definition definition, Handler handler);
+  bool add(Definition definition, Handler handler, ArgumentValidator validator);
   const Entry* find(const std::string& identity) const;
   std::vector<Definition> definitions() const;
 

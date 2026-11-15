@@ -4,6 +4,10 @@
 #include <catch2/catch_test_macros.hpp>
 
 namespace {
+std::string validateEmpty(const nlohmann::json& args) {
+  return args.is_object() && args.empty() ? "" : "expected an empty object";
+}
+
 class Compiler : public octopus::llm::PromptCompiler {
  public:
   mutable std::vector<octopus::llm::Conversation> requests;
@@ -50,11 +54,13 @@ TEST_CASE(
   const nlohmann::json schema = {{"type", "object"},
                                  {"properties", nlohmann::json::object()},
                                  {"additionalProperties", false}};
-  REQUIRE(registry.add({"misc", "hello", "hello", schema, {}},
-                       [&](const auto&, const auto*) {
-                         ++executed;
-                         return "hello result";
-                       }));
+  REQUIRE(registry.add(
+      {"misc", "hello", "hello", schema, {}},
+      [&](const auto&, const auto*) {
+        ++executed;
+        return "hello result";
+      },
+      validateEmpty));
   octopus::tool::AllowAllSecurityPolicy policy;
   octopus::tool::Executor executor(registry, policy);
   octopus::chat::Runtime chat(llm, registry, executor, {});
@@ -98,11 +104,13 @@ TEST_CASE("chat stops repeated tool calls at the configured round limit") {
                                  {"properties", nlohmann::json::object()},
                                  {"additionalProperties", false}};
   int executions = 0;
-  REQUIRE(registry.add({"misc", "hello", "hello", schema, {}},
-                       [&](const auto&, const auto*) {
-                         ++executions;
-                         return "ok";
-                       }));
+  REQUIRE(registry.add(
+      {"misc", "hello", "hello", schema, {}},
+      [&](const auto&, const auto*) {
+        ++executions;
+        return "ok";
+      },
+      validateEmpty));
   octopus::tool::AllowAllSecurityPolicy policy;
   octopus::tool::Executor executor(registry, policy);
   octopus::chat::Runtime chat(llm, registry, executor, {}, 1);
@@ -137,12 +145,14 @@ TEST_CASE("chat preserves completed results and cancels later calls") {
                                  {"properties", nlohmann::json::object()},
                                  {"additionalProperties", false}};
   int executions = 0;
-  REQUIRE(registry.add({"misc", "hello", "hello", schema, {}},
-                       [&](const auto&, const auto*) {
-                         ++executions;
-                         token.cancelled = true;
-                         return "completed";
-                       }));
+  REQUIRE(registry.add(
+      {"misc", "hello", "hello", schema, {}},
+      [&](const auto&, const auto*) {
+        ++executions;
+        token.cancelled = true;
+        return "completed";
+      },
+      validateEmpty));
   octopus::tool::AllowAllSecurityPolicy policy;
   octopus::tool::Executor executor(registry, policy);
   octopus::chat::Runtime chat(llm, registry, executor, {});
@@ -197,11 +207,13 @@ TEST_CASE("rejected calls return correlated outcomes for the model") {
                                  {"properties", nlohmann::json::object()},
                                  {"additionalProperties", false}};
   int executions = 0;
-  REQUIRE(registry.add({"misc", "hello", "hello", schema, {}},
-                       [&](const auto&, const auto*) {
-                         ++executions;
-                         return "bad";
-                       }));
+  REQUIRE(registry.add(
+      {"misc", "hello", "hello", schema, {}},
+      [&](const auto&, const auto*) {
+        ++executions;
+        return "bad";
+      },
+      validateEmpty));
   octopus::tool::Executor executor(registry, deny);
   octopus::chat::Runtime chat(llm, registry, executor, {});
   auto result = chat.turn("call", nullptr);
@@ -241,7 +253,8 @@ TEST_CASE(
   int executions = 0;
   REQUIRE(registry.add(
       {"misc", "hello", "hello", schema, {}},
-      [&](const auto&, const auto*) { return std::to_string(++executions); }));
+      [&](const auto&, const auto*) { return std::to_string(++executions); },
+      validateEmpty));
   octopus::tool::AllowAllSecurityPolicy allow;
   octopus::tool::Executor executor(registry, allow);
   octopus::chat::Runtime chat(llm, registry, executor, {});
@@ -265,8 +278,9 @@ TEST_CASE("CLI chat renders final text without leaking tool protocol") {
   const nlohmann::json schema = {{"type", "object"},
                                  {"properties", nlohmann::json::object()},
                                  {"additionalProperties", false}};
-  REQUIRE(registry.add({"misc", "hello", "hello", schema, {}},
-                       [](const auto&, const auto*) { return "hidden"; }));
+  REQUIRE(registry.add(
+      {"misc", "hello", "hello", schema, {}},
+      [](const auto&, const auto*) { return "hidden"; }, validateEmpty));
   octopus::tool::AllowAllSecurityPolicy allow;
   octopus::tool::Executor executor(registry, allow);
   octopus::chat::Runtime chat(llm, registry, executor, {});

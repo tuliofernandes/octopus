@@ -206,9 +206,11 @@ runtime backend selection.
 
 The independent `octopus_tool` library loads JSON manifests from an explicit
 resource root and invokes registered builtins synchronously. Identifiers use
-lowercase letters, digits and underscores and start with a letter. The only
-supported parameter schema is an empty object with no extra properties.
-`misc.hello_world` is registered from its manifest. The executor requires a
+lowercase letters, digits and underscores and start with a letter. Manifests declare object parameter schemas for the model; each registry entry
+must supply a validator that enforces its tool’s arguments. The loader checks
+the schema root, not full JSON Schema correctness, so authors must keep the
+manifest and validator consistent. `misc.hello_world` accepts only an empty
+object. The executor requires a
 security policy; `AllowAllSecurityPolicy` permits every valid invocation and
 provides no isolation or permission enforcement. Interactive chat advertises registered tools and executes calls serially,
 then returns correlated results to the model. One-shot `ask` does not use tools.
