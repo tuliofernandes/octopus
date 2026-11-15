@@ -1,3 +1,5 @@
+#include "octopus/tool/resources.hpp"
+#include <fstream>
 #include "octopus/tool/tool.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <stdexcept>
@@ -203,4 +205,21 @@ TEST_CASE("registry refuses unsupported schemas and malformed identities") {
   CHECK_FALSE(registry.add({"misc", "bad", "x", {{"type", "string"}}, {}},
                            [](const auto&, const auto*) { return "x"; }));
   CHECK(registry.find("misc.bad") == nullptr);
+}
+
+TEST_CASE("tool resources resolve from build and installed executables") {
+  namespace fs = std::filesystem;
+  const auto root =
+      fs::temp_directory_path() / "octopus-resource-resolution-test";
+  fs::remove_all(root);
+  fs::create_directories(root / "build/share/octopus/tools");
+  fs::create_directories(root / "install/bin");
+  fs::create_directories(root / "install/share/octopus/tools");
+  std::ofstream(root / "build/octo").put('\n');
+  std::ofstream(root / "install/bin/octo").put('\n');
+  REQUIRE(octopus::tool::resourceRoot((root / "build/octo").string()) ==
+          root / "build/share/octopus/tools");
+  REQUIRE(octopus::tool::resourceRoot((root / "install/bin/octo").string()) ==
+          root / "install/share/octopus/tools");
+  fs::remove_all(root);
 }

@@ -18,6 +18,10 @@ set(OCTOPUS_FORMAT_SOURCES
         include/octopus/tool/tool.hpp
         src/tool/tool.cpp
         src/tool/manifest.cpp
+        include/octopus/tool/resources.hpp
+        src/tool/resources.cpp
+        apps/octo/chat_session.hpp
+        apps/octo/chat_session.cpp
         test/tool/tool_test.cpp
         include/octopus/cli/ask.hpp
         include/octopus/cli/chat.hpp
@@ -89,7 +93,7 @@ target_include_directories(octopus_cli PUBLIC include)
 target_compile_features(octopus_cli PUBLIC cxx_std_17)
 target_compile_options(octopus_cli PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
-add_library(octopus_tool STATIC src/tool/tool.cpp src/tool/manifest.cpp)
+add_library(octopus_tool STATIC src/tool/tool.cpp src/tool/manifest.cpp src/tool/resources.cpp)
 file(COPY tools/ DESTINATION ${CMAKE_BINARY_DIR}/share/octopus/tools)
 install(DIRECTORY tools/ DESTINATION share/octopus/tools)
 target_include_directories(octopus_tool PUBLIC include)
@@ -139,7 +143,7 @@ target_compile_features(octopus_inference_llama_cpp PUBLIC cxx_std_17)
 target_link_libraries(octopus_inference_llama_cpp PUBLIC octopus_llm PRIVATE llama-common)
 target_compile_options(octopus_inference_llama_cpp PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
-add_executable(octo apps/octo/main.cpp)
+add_executable(octo apps/octo/main.cpp apps/octo/chat_session.cpp)
 target_include_directories(octo PRIVATE include src)
 target_compile_features(octo PUBLIC cxx_std_17)
 target_link_libraries(octo PRIVATE

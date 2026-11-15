@@ -4,6 +4,8 @@
 
 namespace octopus::models::alibaba::qwen3_5 {
 
+inline constexpr char kDefaultModelPath[] = "./models/Qwen3.5-4B-Q4_K_M.gguf";
+
 class Qwen35PromptCompiler final : public llm::PromptCompiler {
  public:
   explicit Qwen35PromptCompiler(const llm::ChatTemplateEngine& template_engine)
