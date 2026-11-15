@@ -15,17 +15,14 @@ Current capabilities include:
   cancellation, and Ctrl+D exit;
 - a model-neutral runtime contract for prompt compilation, capabilities,
   inference, and assistant-response parsing;
-- an explicitly composed Google Gemma integration with GGUF chat-template
-  preference and a manual fallback;
-- a selectable Alibaba Qwen3.5 integration that uses the GGUF's embedded Jinja
+- an Alibaba Qwen3.5 integration that uses the GGUF's embedded Jinja
   template with thinking disabled;
-- typed `--model qwen35|gemma` selection while loading exactly one model per
-  process;
+- typed `--model qwen35` selection while loading one model per process;
 - testable runtime, model-integration, inference, and CLI boundaries that do
   not require a model in unit tests.
 
-Tools, persistence, runtime backend selection, configuration loading, and a
-daemon are not implemented yet.
+Persistence, runtime backend selection, configuration loading, and a daemon
+are not implemented yet.
 
 ## Prerequisites
 
@@ -79,26 +76,16 @@ distributions. For non-Fedora systems, install the equivalent HIP SDK and
 development libraries from your distribution or AMD before using that preset.
 
 The setup below installs the pinned Conan 2 release in a project-local
-`.venv`. Catch2 3.7.1 and the MIT-licensed MD4C 0.5.2 parser are then resolved
+`.venv`. Catch2 3.7.1, nlohmann_json 3.11.3, and the MIT-licensed MD4C 0.5.2 parser are then resolved
 through Conan; only MD4C's parser library is used. llama.cpp is fetched by CMake
 at the revision pinned in `CMakeLists.txt`.
 
 ## Models
 
-Gemma remains the default model after the local Qwen CPU long-context promotion
-gate exceeded its predeclared time limit. Qwen3.5 is selectable and verified on
-the local AMD HIP configuration.
-
-| CLI value | Local path | Status |
-| --- | --- | --- |
-| `gemma` | `./models/gemma-3-1b-it-Q4_K_M.gguf` | Default and compatibility option |
-| `qwen35` | `./models/Qwen3.5-4B-Q4_K_M.gguf` | Selectable; HIP verified, CPU short requests operational |
-
-Developer-facing integration contracts and the required per-model README
-format live under [`src/models`](src/models/README.md). See the
-[`Qwen3.5`](src/models/alibaba/qwen3_5/README.md) and
-[`Gemma`](src/models/google/gemma/README.md) notes for template, capability,
-flag, fallback, and verification details.
+Qwen3.5 is the default model, verified on the local AMD HIP configuration.
+CPU short requests are operational; the CPU long-context promotion gate exceeded
+its time limit. See the [Qwen3.5 notes](src/models/alibaba/qwen3_5/README.md)
+for template, capability, and verification details.
 
 Download the exact approved Qwen3.5 artifact with:
 
@@ -113,12 +100,6 @@ echo "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4  models/Q
 The file is 2,740,937,888 bytes. Its base model license is Apache-2.0. Model
 weights remain separately licensed local artifacts and are ignored by Git; do
 not package or commit them.
-
-The existing Gemma model can be downloaded with the Hugging Face CLI:
-
-```bash
-hf download ggml-org/gemma-3-1b-it-GGUF --local-dir ./models
-```
 
 On the verified host, Qwen's short HIP requests used about 2.9 GiB peak RSS and
 about 3.0 GiB additional RX 7800 XT VRAM; CPU fallback used about 4.0 GiB peak
@@ -220,3 +201,40 @@ cmake --build ./build --target format-check
 Local AMD HIP and Vulkan development presets are available in
 `CMakePresets.json`. They are build-time configurations, not user-facing
 runtime backend selection.
+
+## Tool foundation
+
+The independent `octopus_tool` library loads JSON manifests from an explicit
+resource root, discovers tools in category/name directories and loads their
+`tool` shared modules into the Octopus process. Each module exports the
+versioned `octopusToolModule` entry point declared in `octopus/tool/module.hpp`;
+it supplies the tool’s validator and handler. Modules must use a compatible C++
+ABI and nlohmann_json version, and are trusted native code: loading and running
+them is not sandboxed. Identifiers use
+lowercase letters, digits and underscores and start with a letter. Manifests declare object parameter schemas for the model; each registry entry
+must supply a validator that enforces its tool’s arguments. The loader checks
+the schema root, not full JSON Schema correctness, so authors must keep the
+manifest and validator consistent. `misc.hello_world` accepts only an empty
+object. Its implementation and manifest live in `tools/misc/hello_world/`,
+with tests in `tests/tools/misc/hello_world/`. CMake builds each module beside
+its copied manifest and installs both under `share/octopus/tools`; new modules
+need a corresponding build and install target. The executor requires a
+security policy; `AllowAllSecurityPolicy` permits every valid invocation and
+provides no isolation or permission enforcement. Interactive chat advertises registered tools and executes calls serially,
+then returns correlated results to the model. One-shot `ask` does not use tools.
+A turn is limited to eight tool rounds. Build resources are copied to `build/share/octopus/tools`;
+installation places them under `share/octopus/tools`. The caller supplies the
+resource root explicitly. Run `cmake --build build --target octopus_tool_tests`
+and `./build/test/octopus_tool_tests` for the model-free subsystem tests.
+
+To verify Qwen tool execution against a model, build the opt-in probe and pass
+the model and resource paths explicitly:
+
+```bash
+cmake --build build --target octopus_tool_call_probe
+./build/test/octopus_tool_call_probe ./models/Qwen3.5-4B-Q4_K_M.gguf ./build/share/octopus/tools
+```
+
+The probe verifies two distinct calls, their results in later model prompts and
+answers, and a normal conversation turn. Use the corresponding build directory
+for an AMD HIP build.

@@ -11,6 +11,22 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_program(CLANG_FORMAT_EXE NAMES clang-format)
 
 set(OCTOPUS_FORMAT_SOURCES
+        include/octopus/chat/runtime.hpp
+        src/chat/runtime.cpp
+        test/chat/runtime_test.cpp
+        include/octopus/core/cancellation.hpp
+        include/octopus/tool/tool.hpp
+        src/tool/tool.cpp
+        src/tool/manifest.cpp
+        src/tool/loader.cpp
+        include/octopus/tool/module.hpp
+        tools/misc/hello_world/main.cpp
+        tests/tools/misc/hello_world/hello_world_test.cpp
+        include/octopus/tool/resources.hpp
+        src/tool/resources.cpp
+        apps/octo/chat_session.hpp
+        apps/octo/chat_session.cpp
+        test/tool/tool_test.cpp
         include/octopus/cli/ask.hpp
         include/octopus/cli/chat.hpp
         include/octopus/cli/cli.hpp
@@ -34,8 +50,6 @@ set(OCTOPUS_FORMAT_SOURCES
         src/llm/runtime.cpp
         src/models/alibaba/qwen3_5/integration.cpp
         src/models/alibaba/qwen3_5/integration.hpp
-        src/models/google/gemma/integration.cpp
-        src/models/google/gemma/integration.hpp
         apps/octo/main.cpp
         test/cli/ask_test.cpp
         test/cli/chat_test.cpp
@@ -46,10 +60,10 @@ set(OCTOPUS_FORMAT_SOURCES
         test/inference/completion_test.cpp
         test/integration/model_completion_probe.cpp
         test/integration/model_template_probe.cpp
+        test/integration/tool_call_probe.cpp
         test/llm/runtime_test.cpp
         test/models/contracts/model_integration_contract.hpp
         test/models/alibaba/qwen3_5/integration_test.cpp
-        test/models/google/gemma/integration_test.cpp
         test/smoke/public_header_compatibility_test.cpp
         test/smoke/smoke_test.cpp)
 
@@ -63,6 +77,7 @@ endif()
 # find Catch2 - if configured Conan2 will be used as dependency provider
 find_package(Catch2 REQUIRED)
 find_package(md4c REQUIRED CONFIG)
+find_package(nlohmann_json REQUIRED CONFIG)
 find_package(Threads REQUIRED)
 include(FetchContent)
 FetchContent_Declare(
@@ -82,12 +97,36 @@ target_include_directories(octopus_cli PUBLIC include)
 target_compile_features(octopus_cli PUBLIC cxx_std_17)
 target_compile_options(octopus_cli PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
+add_library(octopus_tool STATIC src/tool/tool.cpp src/tool/manifest.cpp src/tool/resources.cpp src/tool/loader.cpp)
+file(COPY tools/ DESTINATION ${CMAKE_BINARY_DIR}/share/octopus/tools FILES_MATCHING PATTERN "manifest.json")
+install(DIRECTORY tools/ DESTINATION share/octopus/tools FILES_MATCHING PATTERN "manifest.json")
+add_library(octopus_tool_hello_world MODULE tools/misc/hello_world/main.cpp)
+target_include_directories(octopus_tool_hello_world PRIVATE include)
+target_compile_features(octopus_tool_hello_world PRIVATE cxx_std_17)
+target_compile_options(octopus_tool_hello_world PRIVATE -Wall -Wextra -Wpedantic -Werror)
+target_link_libraries(octopus_tool_hello_world PRIVATE nlohmann_json::nlohmann_json)
+set_target_properties(octopus_tool_hello_world PROPERTIES PREFIX "" OUTPUT_NAME "tool" LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/share/octopus/tools/misc/hello_world")
+install(TARGETS octopus_tool_hello_world LIBRARY DESTINATION share/octopus/tools/misc/hello_world)
+target_compile_definitions(octopus_tool PRIVATE OCTOPUS_MODULE_SUFFIX="${CMAKE_SHARED_MODULE_SUFFIX}")
+target_link_libraries(octopus_tool PUBLIC ${CMAKE_DL_LIBS})
+target_include_directories(octopus_tool PUBLIC include)
+target_compile_features(octopus_tool PUBLIC cxx_std_17)
+target_link_libraries(octopus_tool PUBLIC nlohmann_json::nlohmann_json)
+target_compile_options(octopus_tool PRIVATE -Wall -Wextra -Wpedantic -Werror)
+
 add_library(octopus_llm STATIC
         src/llm/completion.cpp
         src/llm/runtime.cpp)
 target_include_directories(octopus_llm PUBLIC include)
+target_link_libraries(octopus_llm PUBLIC octopus_tool)
 target_compile_features(octopus_llm PUBLIC cxx_std_17)
 target_compile_options(octopus_llm PRIVATE -Wall -Wextra -Wpedantic -Werror)
+
+add_library(octopus_chat STATIC src/chat/runtime.cpp)
+target_include_directories(octopus_chat PUBLIC include)
+target_compile_features(octopus_chat PUBLIC cxx_std_17)
+target_link_libraries(octopus_chat PUBLIC octopus_llm octopus_tool)
+target_compile_options(octopus_chat PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 add_library(octopus_cli_modes STATIC
         src/cli/modes/ask.cpp
@@ -98,16 +137,10 @@ add_library(octopus_cli_modes STATIC
         src/cli/terminal/text.cpp)
 target_include_directories(octopus_cli_modes PUBLIC include PRIVATE src)
 target_compile_features(octopus_cli_modes PUBLIC cxx_std_17)
-target_link_libraries(octopus_cli_modes PUBLIC octopus_cli octopus_llm
+target_link_libraries(octopus_cli_modes PUBLIC octopus_cli octopus_llm octopus_chat
         PRIVATE md4c::md4c Threads::Threads)
 target_compile_options(octopus_cli_modes PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
-add_library(octopus_model_google_gemma STATIC
-        src/models/google/gemma/integration.cpp)
-target_include_directories(octopus_model_google_gemma PUBLIC include src)
-target_compile_features(octopus_model_google_gemma PUBLIC cxx_std_17)
-target_link_libraries(octopus_model_google_gemma PUBLIC octopus_llm)
-target_compile_options(octopus_model_google_gemma PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 add_library(octopus_model_alibaba_qwen35 STATIC
         src/models/alibaba/qwen3_5/integration.cpp)
@@ -123,13 +156,13 @@ target_compile_features(octopus_inference_llama_cpp PUBLIC cxx_std_17)
 target_link_libraries(octopus_inference_llama_cpp PUBLIC octopus_llm PRIVATE llama-common)
 target_compile_options(octopus_inference_llama_cpp PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
-add_executable(octo apps/octo/main.cpp)
+add_executable(octo apps/octo/main.cpp apps/octo/chat_session.cpp)
+add_dependencies(octo octopus_tool_hello_world)
 target_include_directories(octo PRIVATE include src)
 target_compile_features(octo PUBLIC cxx_std_17)
 target_link_libraries(octo PRIVATE
         octopus_cli_modes
         octopus_model_alibaba_qwen35
-        octopus_model_google_gemma
         octopus_inference_llama_cpp)
 
 target_compile_options(octo PRIVATE -Wall -Wextra -Wpedantic -Werror)

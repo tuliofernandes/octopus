@@ -3,7 +3,6 @@
 #include "octopus/llm/runtime.hpp"
 
 #include "models/alibaba/qwen3_5/integration.hpp"
-#include "models/google/gemma/integration.hpp"
 
 #include <charconv>
 #include <chrono>
@@ -111,7 +110,7 @@ int runProbe(const std::string& model_path, int gpu_layers,
 int main(int argc, char** argv) {
   if (argc != 5) {
     std::cerr << "usage: octopus_model_completion_probe "
-                 "<qwen35|gemma> <model.gguf> <gpu-layers> <prompt>\n";
+                 "<qwen35> <model.gguf> <gpu-layers> <prompt>\n";
     return 2;
   }
 
@@ -126,11 +125,7 @@ int main(int argc, char** argv) {
     return runProbe<octopus::models::alibaba::qwen3_5::Qwen35Integration>(
         argv[2], *gpu_layers, argv[4]);
   }
-  if (model == "gemma") {
-    return runProbe<octopus::models::google::gemma::GemmaIntegration>(
-        argv[2], *gpu_layers, argv[4]);
-  }
 
-  std::cerr << "model must be qwen35 or gemma\n";
+  std::cerr << "model must be qwen35\n";
   return 2;
 }

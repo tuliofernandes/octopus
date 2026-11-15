@@ -76,8 +76,8 @@ class ChatOutputSink final : public llm::CompletionSink {
 }  // namespace
 
 ChatRunResult runCliChat(const CliOptions& options, llm::Runtime& runtime,
-                         std::istream& in, std::ostream& out,
-                         std::ostream& err) {
+                         std::istream& in, std::ostream& out, std::ostream& err,
+                         chat::Runtime* tool_runtime) {
   ChatPresentation presentation;
   presentation.capabilities = detectTerminalCapabilities(in, out);
   if (&out == &std::cout) {
@@ -94,12 +94,14 @@ ChatRunResult runCliChat(const CliOptions& options, llm::Runtime& runtime,
           deriveResponseBackground(*background);
     }
   }
-  return runCliChat(options, runtime, in, out, err, std::move(presentation));
+  return runCliChat(options, runtime, in, out, err, std::move(presentation),
+                    tool_runtime);
 }
 
 ChatRunResult runCliChat(const CliOptions& options, llm::Runtime& runtime,
                          std::istream& in, std::ostream& out, std::ostream& err,
-                         ChatPresentation presentation) {
+                         ChatPresentation presentation,
+                         chat::Runtime* tool_runtime) {
   ChatRunResult result;
   llm::Conversation conversation;
   const bool interactive_session =
@@ -137,7 +139,10 @@ ChatRunResult runCliChat(const CliOptions& options, llm::Runtime& runtime,
     ScopedGenerationCancelHandler cancel_handler;
     request.cancellation = &cancel_handler.token();
     renderer.startSpinner();
-    auto completion = runtime.completeStreaming(request, sink);
+    auto completion =
+        tool_runtime
+            ? tool_runtime->turn(input.text, request.cancellation, &sink)
+            : runtime.completeStreaming(request, sink);
 
     if (completionFailed(completion)) {
       result.exit_code = 1;

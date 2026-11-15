@@ -24,6 +24,8 @@ using ParseResult = Result<AssistantResponse>;
 struct TemplateMessage {
   std::string role;
   std::string content;
+  std::vector<tool::Call> tool_calls{};
+  std::string tool_call_id{};
 };
 
 enum class TemplateReasoningPolicy {
@@ -35,6 +37,7 @@ struct ChatTemplateRequest {
   std::vector<TemplateMessage> messages;
   bool add_generation_prompt = true;
   TemplateReasoningPolicy reasoning = TemplateReasoningPolicy::ModelDefault;
+  std::vector<tool::Definition> tools{};
 };
 
 using TemplateRenderResult = Result<std::string>;

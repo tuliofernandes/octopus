@@ -51,14 +51,13 @@ TEST_CASE("Qwen3.5 integration remains immovable while borrowing its engine",
                        octopus::models::alibaba::qwen3_5::Qwen35Integration>);
 }
 
-TEST_CASE("Qwen3.5 integration declares current text-only capabilities",
-          "[qwen35]") {
+TEST_CASE("Qwen3.5 integration declares tool capability", "[qwen35]") {
   FakeTemplateEngine engine(
       octopus::llm::TemplateRenderResult::success("compiled"));
   octopus::models::alibaba::qwen3_5::Qwen35Integration qwen(engine);
 
   const auto& capabilities = qwen.modelIntegration().capabilities();
-  CHECK_FALSE(capabilities.tools);
+  CHECK(capabilities.tools);
   CHECK_FALSE(capabilities.structured_output);
   CHECK_FALSE(capabilities.reasoning);
 }
@@ -187,4 +186,75 @@ TEST_CASE("Qwen3.5 satisfies the reusable model integration contract",
   octopus::models::alibaba::qwen3_5::Qwen35Integration qwen(engine);
 
   octopus::test::checkModelIntegrationContract(qwen.modelIntegration());
+}
+
+TEST_CASE("Qwen3.5 parses complete pilot tool calls and rejects truncation",
+          "[qwen35]") {
+  FakeTemplateEngine engine(
+      octopus::llm::TemplateRenderResult::success("compiled"));
+  octopus::models::alibaba::qwen3_5::Qwen35Integration qwen(engine);
+  octopus::llm::RawCompletion raw;
+  raw.text =
+      "<tool_call>\n<function=misc.hello_world>\n</function>\n</tool_call>";
+  auto result = qwen.modelIntegration().parser().parse(raw);
+  REQUIRE(result.hasValue());
+  REQUIRE(result.value().tool_calls.size() == 1);
+  CHECK(result.value().tool_calls[0].identity == "misc.hello_world");
+  raw.finish_reason = octopus::llm::FinishReason::MaxTokens;
+  CHECK_FALSE(qwen.modelIntegration().parser().parse(raw).hasValue());
+}
+
+TEST_CASE("Qwen3.5 does not call tools from quoted examples", "[qwen35]") {
+  FakeTemplateEngine engine(
+      octopus::llm::TemplateRenderResult::success("compiled"));
+  octopus::models::alibaba::qwen3_5::Qwen35Integration qwen(engine);
+  octopus::llm::RawCompletion raw;
+  raw.text =
+      "Example:\n```\n<tool_call>\n<function=misc.hello_world>\n</function>\n</"
+      "tool_call>\n```";
+  const auto result = qwen.modelIntegration().parser().parse(raw);
+  REQUIRE(result.hasValue());
+  CHECK(result.value().tool_calls.empty());
+  CHECK(result.value().text == raw.text);
+}
+
+TEST_CASE("Qwen3.5 preserves supplied arguments for validation", "[qwen35]") {
+  FakeTemplateEngine engine(
+      octopus::llm::TemplateRenderResult::success("compiled"));
+  octopus::models::alibaba::qwen3_5::Qwen35Integration qwen(engine);
+  octopus::llm::RawCompletion raw;
+  raw.text =
+      "<tool_call>\n<function=misc.hello_world>\n<parameter=extra>\nvalue\n</"
+      "parameter>\n</function>\n</tool_call>";
+  auto result = qwen.modelIntegration().parser().parse(raw);
+  REQUIRE(result.hasValue());
+  REQUIRE(result.value().tool_calls.size() == 1);
+  CHECK(result.value().tool_calls[0].identity == "misc.hello_world");
+  CHECK(result.value().tool_calls[0].arguments.contains("extra"));
+}
+
+TEST_CASE("Qwen3.5 compiler passes catalog and correlated history to template",
+          "[qwen35]") {
+  FakeTemplateEngine engine(
+      octopus::llm::TemplateRenderResult::success("compiled"));
+  octopus::models::alibaba::qwen3_5::Qwen35Integration qwen(engine);
+  auto conversation = policyConversation();
+  const nlohmann::json schema = {{"type", "object"},
+                                 {"properties", nlohmann::json::object()},
+                                 {"additionalProperties", false}};
+  conversation.tools.push_back({"misc", "hello_world", "greeting", schema, {}});
+  conversation.messages.push_back(
+      {octopus::llm::Role::Assistant,
+       "",
+       {{"one", "misc.hello_world", nlohmann::json::object()}},
+       {}});
+  conversation.messages.push_back(
+      {octopus::llm::Role::Tool, "result", {}, "one"});
+  REQUIRE(qwen.modelIntegration().compiler().compile(conversation).hasValue());
+  REQUIRE(engine.last_request.tools.size() == 1);
+  CHECK(engine.last_request.tools[0].identity() == "misc.hello_world");
+  REQUIRE(engine.last_request.messages.size() == 4);
+  CHECK(engine.last_request.messages[2].tool_calls[0].id == "one");
+  CHECK(engine.last_request.messages[3].role == "tool");
+  CHECK(engine.last_request.messages[3].tool_call_id == "one");
 }

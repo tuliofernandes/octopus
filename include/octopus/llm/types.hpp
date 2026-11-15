@@ -1,5 +1,8 @@
 #pragma once
 
+#include "octopus/core/cancellation.hpp"
+#include "octopus/tool/tool.hpp"
+
 #include <cmath>
 #include <string>
 #include <utility>
@@ -13,15 +16,19 @@ enum class Role {
   Developer,
   User,
   Assistant,
+  Tool,
 };
 
 struct Message {
   Role role = Role::User;
   std::string content;
+  std::vector<tool::Call> tool_calls{};
+  std::string tool_call_id{};
 };
 
 struct Conversation {
   std::vector<Message> messages;
+  std::vector<tool::Definition> tools{};
 };
 
 enum class SamplerProfile {
@@ -29,7 +36,7 @@ enum class SamplerProfile {
 };
 
 struct GenerationOptions {
-  int max_tokens = 512;
+  int max_tokens = 4096;
   SamplerProfile sampler_profile = SamplerProfile::Deterministic;
   int repeat_last_n = 0;
   float repeat_penalty = 1.0F;
@@ -43,11 +50,7 @@ struct GenerationOptionsValidation {
   std::string error;
 };
 
-class CancellationToken {
- public:
-  virtual ~CancellationToken() = default;
-  virtual bool isCancellationRequested() const noexcept = 0;
-};
+using CancellationToken = core::CancellationToken;
 
 inline bool repeatPenaltyEnabled(const GenerationOptions& options) {
   return options.repeat_penalty > 1.0F || options.frequency_penalty > 0.0F ||
@@ -127,6 +130,7 @@ struct RawCompletion {
 
 struct AssistantResponse {
   std::string text;
+  std::vector<tool::Call> tool_calls{};
 };
 
 struct Completion {

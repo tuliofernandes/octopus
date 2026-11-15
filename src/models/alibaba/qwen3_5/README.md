@@ -11,7 +11,7 @@ and response contracts.
 | Local artifact | `./models/Qwen3.5-4B-Q4_K_M.gguf` |
 | Approved source | `unsloth/Qwen3.5-4B-GGUF` at `720bb031aae5488eae5d6a78768e6d826662b2ae` |
 | Artifact identity | 2,740,937,888 bytes; SHA-256 `00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4` |
-| Default | No; Gemma remains the no-flag default |
+| Default | Yes |
 | Verified runtime | Linux CPU for short requests; AMD HIP/RDNA3 including long-context probes |
 
 ## Template contract
@@ -34,8 +34,8 @@ and response contracts.
   </think>
   ```
 
-- Text stops at `<|im_end|>` or native end-of-generation. The response parser
-  is pass-through; do not rely on post-hoc protocol stripping.
+- Text stops at `<|im_end|>` or native end-of-generation. The response parser accepts complete XML tool calls and rejects malformed or
+  truncated call protocol.
 
 ## Supported Octopus surface
 
@@ -44,7 +44,8 @@ and response contracts.
 | Text generation and multi-turn history | Yes |
 | Leading system/developer policy | Yes, folded into one system message |
 | Exposed reasoning | No; thinking is disabled |
-| Tools or structured output | No |
+| Tools | Yes, synchronous builtins in interactive chat |
+| Structured output | No |
 | Vision, audio, or other modalities | Not exposed by Octopus |
 
 ## Invocation and fixed policy
@@ -54,10 +55,9 @@ and response contracts.
 ./build/octo --model qwen35 ask "Say hello."
 ```
 
-`--model` must precede `ask`. Model path, backend, GPU layers, 512-token output
+`--model` must precede `ask`. Model path, backend, GPU layers, 4096-token output
 limit, deterministic sampling, and reasoning policy are currently internal;
-there are no public flags for them. Qwen is not the default because the frozen
-CPU long-context promotion gate failed.
+there are no public flags for them. The frozen CPU long-context promotion gate failed.
 
 ## Verification and change checklist
 
