@@ -21,8 +21,8 @@ Current capabilities include:
 - testable runtime, model-integration, inference, and CLI boundaries that do
   not require a model in unit tests.
 
-Chat tool execution, persistence, runtime backend selection, configuration
-loading, and a daemon are not implemented yet.
+Persistence, runtime backend selection, configuration loading, and a daemon
+are not implemented yet.
 
 ## Prerequisites
 
@@ -210,8 +210,21 @@ lowercase letters, digits and underscores and start with a letter. The only
 supported parameter schema is an empty object with no extra properties.
 `misc.hello_world` is registered from its manifest. The executor requires a
 security policy; `AllowAllSecurityPolicy` permits every valid invocation and
-provides no isolation or permission enforcement. Tools are not yet connected to
-the chat interface. Build resources are copied to `build/share/octopus/tools`;
+provides no isolation or permission enforcement. Interactive chat advertises registered tools and executes calls serially,
+then returns correlated results to the model. One-shot `ask` does not use tools.
+A turn is limited to eight tool rounds. Build resources are copied to `build/share/octopus/tools`;
 installation places them under `share/octopus/tools`. The caller supplies the
 resource root explicitly. Run `cmake --build build --target octopus_tool_tests`
 and `./build/test/octopus_tool_tests` for the model-free subsystem tests.
+
+To verify Qwen tool execution against a model, build the opt-in probe and pass
+the model and resource paths explicitly:
+
+```bash
+cmake --build build --target octopus_tool_call_probe
+./build/test/octopus_tool_call_probe ./models/Qwen3.5-4B-Q4_K_M.gguf ./build/share/octopus/tools
+```
+
+The probe verifies two distinct calls, their results in later model prompts and
+answers, and a normal conversation turn. Use the corresponding build directory
+for an AMD HIP build.

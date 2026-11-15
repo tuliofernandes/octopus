@@ -34,8 +34,8 @@ and response contracts.
   </think>
   ```
 
-- Text stops at `<|im_end|>` or native end-of-generation. The response parser
-  is pass-through; do not rely on post-hoc protocol stripping.
+- Text stops at `<|im_end|>` or native end-of-generation. The response parser accepts complete XML tool calls and rejects malformed or
+  truncated call protocol.
 
 ## Supported Octopus surface
 
@@ -44,7 +44,8 @@ and response contracts.
 | Text generation and multi-turn history | Yes |
 | Leading system/developer policy | Yes, folded into one system message |
 | Exposed reasoning | No; thinking is disabled |
-| Tools or structured output | No |
+| Tools | Yes, synchronous builtins in interactive chat |
+| Structured output | No |
 | Vision, audio, or other modalities | Not exposed by Octopus |
 
 ## Invocation and fixed policy

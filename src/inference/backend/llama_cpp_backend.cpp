@@ -378,7 +378,16 @@ struct LlamaCppBackend::Impl {
         common_chat_msg native_message;
         native_message.role = message.role;
         native_message.content = message.content;
+        native_message.tool_call_id = message.tool_call_id;
+        for (const auto& call : message.tool_calls) {
+          native_message.tool_calls.push_back(
+              {call.identity, call.arguments.dump(), call.id});
+        }
         inputs.messages.push_back(std::move(native_message));
+      }
+      for (const auto& definition : request.tools) {
+        inputs.tools.push_back({definition.identity(), definition.description,
+                                definition.parameters.dump()});
       }
       inputs.add_generation_prompt = request.add_generation_prompt;
       inputs.use_jinja = true;

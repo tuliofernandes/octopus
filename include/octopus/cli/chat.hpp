@@ -3,6 +3,7 @@
 #include "octopus/cli/cli.hpp"
 #include "octopus/cli/terminal_renderer.hpp"
 #include "octopus/llm/runtime.hpp"
+#include "octopus/chat/runtime.hpp"
 
 #include <chrono>
 #include <functional>
@@ -27,10 +28,11 @@ struct ChatPresentation {
 // Run the progressively enhanced stdin/stdout multi-turn chat loop. Streams,
 // callbacks, and backend are borrowed only for the duration of the call.
 ChatRunResult runCliChat(const CliOptions& options, llm::Runtime& runtime,
-                         std::istream& in, std::ostream& out,
-                         std::ostream& err);
+                         std::istream& in, std::ostream& out, std::ostream& err,
+                         chat::Runtime* tool_runtime = nullptr);
 ChatRunResult runCliChat(const CliOptions& options, llm::Runtime& runtime,
                          std::istream& in, std::ostream& out, std::ostream& err,
-                         ChatPresentation presentation);
+                         ChatPresentation presentation,
+                         chat::Runtime* tool_runtime = nullptr);
 
 }  // namespace octopus

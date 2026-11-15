@@ -1,6 +1,7 @@
 #pragma once
 
 #include "octopus/core/cancellation.hpp"
+#include "octopus/tool/tool.hpp"
 
 #include <cmath>
 #include <string>
@@ -15,15 +16,19 @@ enum class Role {
   Developer,
   User,
   Assistant,
+  Tool,
 };
 
 struct Message {
   Role role = Role::User;
   std::string content;
+  std::vector<tool::Call> tool_calls{};
+  std::string tool_call_id{};
 };
 
 struct Conversation {
   std::vector<Message> messages;
+  std::vector<tool::Definition> tools{};
 };
 
 enum class SamplerProfile {
@@ -125,6 +130,7 @@ struct RawCompletion {
 
 struct AssistantResponse {
   std::string text;
+  std::vector<tool::Call> tool_calls{};
 };
 
 struct Completion {
