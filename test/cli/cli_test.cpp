@@ -12,7 +12,7 @@ TEST_CASE("CLI defaults to interactive chat mode without model flags",
   REQUIRE(result.ok);
   CHECK(result.exit_code == 0);
   CHECK(result.options.mode == octopus::CliMode::Interactive);
-  CHECK(result.options.model == octopus::CliModel::Gemma);
+  CHECK(result.options.model == octopus::CliModel::Qwen35);
   CHECK(result.options.prompt.empty());
   CHECK(result.options.n_predict == 4096);
   CHECK(result.options.n_gpu_layers == 99);
@@ -28,7 +28,7 @@ TEST_CASE("CLI parses one-shot ask prompts with the default model", "[cli]") {
   REQUIRE(result.ok);
   CHECK(result.options.mode == octopus::CliMode::Ask);
   CHECK(result.options.prompt == "Who was John Kennedy?");
-  CHECK(result.options.model == octopus::CliModel::Gemma);
+  CHECK(result.options.model == octopus::CliModel::Qwen35);
   CHECK(result.options.n_predict == 4096);
   CHECK(result.options.n_gpu_layers == 99);
   CHECK(result.options.quiet);
@@ -36,16 +36,12 @@ TEST_CASE("CLI parses one-shot ask prompts with the default model", "[cli]") {
 
 TEST_CASE("CLI parses explicit model selections before either mode", "[cli]") {
   const auto qwen = octopus::parseCli({"octo", "--model", "qwen35"});
-  const auto gemma =
-      octopus::parseCli({"octo", "--model", "gemma", "ask", "Say", "hello"});
+  const auto rejected = octopus::parseCli({"octo", "--model", "gemma"});
 
   REQUIRE(qwen.ok);
   CHECK(qwen.options.mode == octopus::CliMode::Interactive);
   CHECK(qwen.options.model == octopus::CliModel::Qwen35);
-  REQUIRE(gemma.ok);
-  CHECK(gemma.options.mode == octopus::CliMode::Ask);
-  CHECK(gemma.options.model == octopus::CliModel::Gemma);
-  CHECK(gemma.options.prompt == "Say hello");
+  CHECK_FALSE(rejected.ok);
 }
 
 TEST_CASE("CLI help documents model values and keeps paths private", "[cli]") {
@@ -60,9 +56,9 @@ TEST_CASE("CLI help documents model values and keeps paths private", "[cli]") {
   CHECK(result.help.find("curses") == std::string::npos);
   CHECK(result.help.find("ncurses") == std::string::npos);
   CHECK(result.help.find("TUI") == std::string::npos);
-  CHECK(result.help.find("--model <qwen35|gemma>") != std::string::npos);
-  CHECK(result.help.find("default: gemma") != std::string::npos);
-  CHECK(result.help.find("octo --model gemma ask") != std::string::npos);
+  CHECK(result.help.find("--model <qwen35>") != std::string::npos);
+  CHECK(result.help.find("default: qwen35") != std::string::npos);
+  CHECK(result.help.find("octo --model qwen35 ask") != std::string::npos);
   CHECK(result.help.find(".gguf") == std::string::npos);
   CHECK(result.help.find("--n_predict") == std::string::npos);
   CHECK(result.help.find("--n_gpu_layers") == std::string::npos);
@@ -97,7 +93,7 @@ TEST_CASE("CLI rejects malformed model selections", "[cli]") {
   CHECK_FALSE(missing.ok);
   CHECK(missing.error.find("requires") != std::string::npos);
   CHECK_FALSE(invalid.ok);
-  CHECK(invalid.error.find("qwen35|gemma") != std::string::npos);
+  CHECK(invalid.error.find("qwen35") != std::string::npos);
   CHECK_FALSE(duplicate.ok);
   CHECK(duplicate.error.find("more than once") != std::string::npos);
   CHECK_FALSE(equals.ok);

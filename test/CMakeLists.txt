@@ -13,15 +13,13 @@ target_sources(octopus_tests PRIVATE
         inference/completion_test.cpp
         llm/runtime_test.cpp
         models/alibaba/qwen3_5/integration_test.cpp
-        models/google/gemma/integration_test.cpp
         smoke/public_header_compatibility_test.cpp
         smoke/smoke_test.cpp)
 target_include_directories(octopus_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(octopus_tests PRIVATE
         Catch2::Catch2WithMain
         octopus_cli_modes
-        octopus_model_alibaba_qwen35
-        octopus_model_google_gemma)
+        octopus_model_alibaba_qwen35)
 target_compile_features(octopus_tests PRIVATE cxx_std_17)
 target_compile_options(octopus_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
@@ -44,7 +42,6 @@ add_executable(octopus_model_completion_probe EXCLUDE_FROM_ALL
 target_link_libraries(octopus_model_completion_probe PRIVATE
         octopus_cli_modes
         octopus_model_alibaba_qwen35
-        octopus_model_google_gemma
         octopus_inference_llama_cpp)
 target_compile_features(octopus_model_completion_probe PRIVATE cxx_std_17)
 target_compile_options(octopus_model_completion_probe PRIVATE

@@ -5,7 +5,6 @@
 #include "octopus/llm/runtime.hpp"
 
 #include "models/alibaba/qwen3_5/integration.hpp"
-#include "models/google/gemma/integration.hpp"
 
 #include <iostream>
 #include <string>
@@ -14,7 +13,6 @@
 namespace {
 
 constexpr const char* kQwen35ModelPath = "./models/Qwen3.5-4B-Q4_K_M.gguf";
-constexpr const char* kGemmaModelPath = "./models/gemma-3-1b-it-Q4_K_M.gguf";
 
 std::vector<std::string> argvToStrings(int argc, char** argv) {
   std::vector<std::string> arguments;
@@ -67,9 +65,6 @@ int main(int argc, char** argv) {
     case octopus::CliModel::Qwen35:
       return runWithModel<octopus::models::alibaba::qwen3_5::Qwen35Integration>(
           options, kQwen35ModelPath);
-    case octopus::CliModel::Gemma:
-      return runWithModel<octopus::models::google::gemma::GemmaIntegration>(
-          options, kGemmaModelPath);
   }
 
   return 1;

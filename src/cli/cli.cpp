@@ -15,19 +15,19 @@ constexpr const char* kProgramName = "octo";
 std::string helpText() {
   std::ostringstream output;
   output << "Usage: " << kProgramName << " [--help]\n"
-         << "       " << kProgramName << " [--model <qwen35|gemma>]\n"
+         << "       " << kProgramName << " [--model <qwen35>]\n"
          << "       " << kProgramName
-         << " [--model <qwen35|gemma>] ask <prompt...>\n\n"
+         << " [--model <qwen35>] ask <prompt...>\n\n"
          << "Modes:\n"
          << "  " << kProgramName
          << "                  Start a pure CLI multi-turn chat\n"
          << "  " << kProgramName
          << " ask <prompt...>  Ask one question and print one answer\n\n"
          << "Options:\n"
-         << "  --model <qwen35|gemma>  Select the model (default: gemma)\n"
+         << "  --model <qwen35>  Select the model (default: qwen35)\n"
          << "  -h, --help              Show this help message and exit\n\n"
          << "Examples:\n"
-         << "  " << kProgramName << " --model gemma ask \"Say hello\"\n";
+         << "  " << kProgramName << " --model qwen35 ask \"Say hello\"\n";
   return output.str();
 }
 
@@ -102,16 +102,14 @@ CliParseResult parseCli(const std::vector<std::string>& arguments) {
     }
     model_seen = true;
     if (cursor + 1 >= arguments.size()) {
-      return errorResult("--model requires one of: qwen35|gemma");
+      return errorResult("--model requires one of: qwen35");
     }
 
     const auto& model = arguments[cursor + 1];
     if (model == "qwen35") {
       result.options.model = CliModel::Qwen35;
-    } else if (model == "gemma") {
-      result.options.model = CliModel::Gemma;
     } else {
-      return errorResult("invalid --model value; expected qwen35|gemma");
+      return errorResult("invalid --model value; expected qwen35");
     }
     cursor += 2;
   }

@@ -15,12 +15,9 @@ Current capabilities include:
   cancellation, and Ctrl+D exit;
 - a model-neutral runtime contract for prompt compilation, capabilities,
   inference, and assistant-response parsing;
-- an explicitly composed Google Gemma integration with GGUF chat-template
-  preference and a manual fallback;
-- a selectable Alibaba Qwen3.5 integration that uses the GGUF's embedded Jinja
+- an Alibaba Qwen3.5 integration that uses the GGUF's embedded Jinja
   template with thinking disabled;
-- typed `--model qwen35|gemma` selection while loading exactly one model per
-  process;
+- typed `--model qwen35` selection while loading one model per process;
 - testable runtime, model-integration, inference, and CLI boundaries that do
   not require a model in unit tests.
 
@@ -85,20 +82,10 @@ at the revision pinned in `CMakeLists.txt`.
 
 ## Models
 
-Gemma remains the default model after the local Qwen CPU long-context promotion
-gate exceeded its predeclared time limit. Qwen3.5 is selectable and verified on
-the local AMD HIP configuration.
-
-| CLI value | Local path | Status |
-| --- | --- | --- |
-| `gemma` | `./models/gemma-3-1b-it-Q4_K_M.gguf` | Default and compatibility option |
-| `qwen35` | `./models/Qwen3.5-4B-Q4_K_M.gguf` | Selectable; HIP verified, CPU short requests operational |
-
-Developer-facing integration contracts and the required per-model README
-format live under [`src/models`](src/models/README.md). See the
-[`Qwen3.5`](src/models/alibaba/qwen3_5/README.md) and
-[`Gemma`](src/models/google/gemma/README.md) notes for template, capability,
-flag, fallback, and verification details.
+Qwen3.5 is the default model, verified on the local AMD HIP configuration.
+CPU short requests are operational; the CPU long-context promotion gate exceeded
+its time limit. See the [Qwen3.5 notes](src/models/alibaba/qwen3_5/README.md)
+for template, capability, and verification details.
 
 Download the exact approved Qwen3.5 artifact with:
 
@@ -113,12 +100,6 @@ echo "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4  models/Q
 The file is 2,740,937,888 bytes. Its base model license is Apache-2.0. Model
 weights remain separately licensed local artifacts and are ignored by Git; do
 not package or commit them.
-
-The existing Gemma model can be downloaded with the Hugging Face CLI:
-
-```bash
-hf download ggml-org/gemma-3-1b-it-GGUF --local-dir ./models
-```
 
 On the verified host, Qwen's short HIP requests used about 2.9 GiB peak RSS and
 about 3.0 GiB additional RX 7800 XT VRAM; CPU fallback used about 4.0 GiB peak

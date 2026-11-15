@@ -34,8 +34,6 @@ set(OCTOPUS_FORMAT_SOURCES
         src/llm/runtime.cpp
         src/models/alibaba/qwen3_5/integration.cpp
         src/models/alibaba/qwen3_5/integration.hpp
-        src/models/google/gemma/integration.cpp
-        src/models/google/gemma/integration.hpp
         apps/octo/main.cpp
         test/cli/ask_test.cpp
         test/cli/chat_test.cpp
@@ -49,7 +47,6 @@ set(OCTOPUS_FORMAT_SOURCES
         test/llm/runtime_test.cpp
         test/models/contracts/model_integration_contract.hpp
         test/models/alibaba/qwen3_5/integration_test.cpp
-        test/models/google/gemma/integration_test.cpp
         test/smoke/public_header_compatibility_test.cpp
         test/smoke/smoke_test.cpp)
 
@@ -102,12 +99,6 @@ target_link_libraries(octopus_cli_modes PUBLIC octopus_cli octopus_llm
         PRIVATE md4c::md4c Threads::Threads)
 target_compile_options(octopus_cli_modes PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
-add_library(octopus_model_google_gemma STATIC
-        src/models/google/gemma/integration.cpp)
-target_include_directories(octopus_model_google_gemma PUBLIC include src)
-target_compile_features(octopus_model_google_gemma PUBLIC cxx_std_17)
-target_link_libraries(octopus_model_google_gemma PUBLIC octopus_llm)
-target_compile_options(octopus_model_google_gemma PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 add_library(octopus_model_alibaba_qwen35 STATIC
         src/models/alibaba/qwen3_5/integration.cpp)
@@ -129,7 +120,6 @@ target_compile_features(octo PUBLIC cxx_std_17)
 target_link_libraries(octo PRIVATE
         octopus_cli_modes
         octopus_model_alibaba_qwen35
-        octopus_model_google_gemma
         octopus_inference_llama_cpp)
 
 target_compile_options(octo PRIVATE -Wall -Wextra -Wpedantic -Werror)
