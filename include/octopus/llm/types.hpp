@@ -1,5 +1,7 @@
 #pragma once
 
+#include "octopus/core/cancellation.hpp"
+
 #include <cmath>
 #include <string>
 #include <utility>
@@ -43,11 +45,7 @@ struct GenerationOptionsValidation {
   std::string error;
 };
 
-class CancellationToken {
- public:
-  virtual ~CancellationToken() = default;
-  virtual bool isCancellationRequested() const noexcept = 0;
-};
+using CancellationToken = core::CancellationToken;
 
 inline bool repeatPenaltyEnabled(const GenerationOptions& options) {
   return options.repeat_penalty > 1.0F || options.frequency_penalty > 0.0F ||

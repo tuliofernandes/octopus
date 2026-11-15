@@ -46,3 +46,9 @@ target_link_libraries(octopus_model_completion_probe PRIVATE
 target_compile_features(octopus_model_completion_probe PRIVATE cxx_std_17)
 target_compile_options(octopus_model_completion_probe PRIVATE
         -Wall -Wextra -Wpedantic -Werror)
+
+add_executable(octopus_tool_tests tool/tool_test.cpp)
+target_link_libraries(octopus_tool_tests PRIVATE octopus_tool Catch2::Catch2WithMain)
+target_compile_features(octopus_tool_tests PRIVATE cxx_std_17)
+target_compile_definitions(octopus_tool_tests PRIVATE TOOL_RESOURCE_ROOT="${CMAKE_BINARY_DIR}/share/octopus/tools")
+catch_discover_tests(octopus_tool_tests)

@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "name": "hello_world",
+  "category": "misc",
+  "description": "Returns a greeting followed by a random integer from 1000 to 99999.",
+  "parameters": {"type": "object", "properties": {}, "additionalProperties": false},
+  "permissions": []
+}

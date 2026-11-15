@@ -11,6 +11,11 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_program(CLANG_FORMAT_EXE NAMES clang-format)
 
 set(OCTOPUS_FORMAT_SOURCES
+        include/octopus/core/cancellation.hpp
+        include/octopus/tool/tool.hpp
+        src/tool/tool.cpp
+        src/tool/manifest.cpp
+        test/tool/tool_test.cpp
         include/octopus/cli/ask.hpp
         include/octopus/cli/chat.hpp
         include/octopus/cli/cli.hpp
@@ -60,6 +65,7 @@ endif()
 # find Catch2 - if configured Conan2 will be used as dependency provider
 find_package(Catch2 REQUIRED)
 find_package(md4c REQUIRED CONFIG)
+find_package(nlohmann_json REQUIRED CONFIG)
 find_package(Threads REQUIRED)
 include(FetchContent)
 FetchContent_Declare(
@@ -123,6 +129,14 @@ target_link_libraries(octo PRIVATE
         octopus_inference_llama_cpp)
 
 target_compile_options(octo PRIVATE -Wall -Wextra -Wpedantic -Werror)
+
+add_library(octopus_tool STATIC src/tool/tool.cpp src/tool/manifest.cpp)
+file(COPY tools/ DESTINATION ${CMAKE_BINARY_DIR}/share/octopus/tools)
+install(DIRECTORY tools/ DESTINATION share/octopus/tools)
+target_include_directories(octopus_tool PUBLIC include)
+target_compile_features(octopus_tool PUBLIC cxx_std_17)
+target_link_libraries(octopus_tool PUBLIC nlohmann_json::nlohmann_json)
+target_compile_options(octopus_tool PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 # Enable testing
 include(CTest)

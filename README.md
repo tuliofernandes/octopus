@@ -21,8 +21,8 @@ Current capabilities include:
 - testable runtime, model-integration, inference, and CLI boundaries that do
   not require a model in unit tests.
 
-Tools, persistence, runtime backend selection, configuration loading, and a
-daemon are not implemented yet.
+Chat tool execution, persistence, runtime backend selection, configuration
+loading, and a daemon are not implemented yet.
 
 ## Prerequisites
 
@@ -76,7 +76,7 @@ distributions. For non-Fedora systems, install the equivalent HIP SDK and
 development libraries from your distribution or AMD before using that preset.
 
 The setup below installs the pinned Conan 2 release in a project-local
-`.venv`. Catch2 3.7.1 and the MIT-licensed MD4C 0.5.2 parser are then resolved
+`.venv`. Catch2 3.7.1, nlohmann_json 3.11.3, and the MIT-licensed MD4C 0.5.2 parser are then resolved
 through Conan; only MD4C's parser library is used. llama.cpp is fetched by CMake
 at the revision pinned in `CMakeLists.txt`.
 
@@ -201,3 +201,17 @@ cmake --build ./build --target format-check
 Local AMD HIP and Vulkan development presets are available in
 `CMakePresets.json`. They are build-time configurations, not user-facing
 runtime backend selection.
+
+## Tool foundation
+
+The independent `octopus_tool` library loads JSON manifests from an explicit
+resource root and invokes registered builtins synchronously. Identifiers use
+lowercase letters, digits and underscores and start with a letter. The only
+supported parameter schema is an empty object with no extra properties.
+`misc.hello_world` is registered from its manifest. The executor requires a
+security policy; `AllowAllSecurityPolicy` permits every valid invocation and
+provides no isolation or permission enforcement. Tools are not yet connected to
+the chat interface. Build resources are copied to `build/share/octopus/tools`;
+installation places them under `share/octopus/tools`. The caller supplies the
+resource root explicitly. Run `cmake --build build --target octopus_tool_tests`
+and `./build/test/octopus_tool_tests` for the model-free subsystem tests.
