@@ -2,106 +2,100 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-TEST_CASE("stop detector removes stop completed across chunks",
-          "[completion]") {
-  octopus::llm::StopDetector detector({"<end_of_turn>"});
+TEST_CASE("stop detector removes stop completed across chunks", "[completion]") {
+    octopus::llm::StopDetector detector({"<end_of_turn>"});
 
-  CHECK_FALSE(detector.append("hello <end"));
-  CHECK(detector.text() == "hello <end");
+    CHECK_FALSE(detector.append("hello <end"));
+    CHECK(detector.text() == "hello <end");
 
-  CHECK_FALSE(detector.append("_of"));
-  CHECK(detector.text() == "hello <end_of");
+    CHECK_FALSE(detector.append("_of"));
+    CHECK(detector.text() == "hello <end_of");
 
-  CHECK(detector.append("_turn>"));
-  CHECK(detector.text() == "hello ");
+    CHECK(detector.append("_turn>"));
+    CHECK(detector.text() == "hello ");
 }
 
-TEST_CASE("stop detector retains partial stop prefixes until resolved",
-          "[completion]") {
-  octopus::llm::StopDetector detector({"<end_of_turn>"});
+TEST_CASE("stop detector retains partial stop prefixes until resolved", "[completion]") {
+    octopus::llm::StopDetector detector({"<end_of_turn>"});
 
-  CHECK_FALSE(detector.append("alpha <end"));
-  CHECK(detector.text() == "alpha <end");
+    CHECK_FALSE(detector.append("alpha <end"));
+    CHECK(detector.text() == "alpha <end");
 
-  CHECK_FALSE(detector.append("x"));
-  CHECK(detector.text() == "alpha <endx");
+    CHECK_FALSE(detector.append("x"));
+    CHECK(detector.text() == "alpha <endx");
 }
 
 TEST_CASE("stop detector ignores empty stop strings", "[completion]") {
-  octopus::llm::StopDetector detector({"", "<stop>"});
+    octopus::llm::StopDetector detector({"", "<stop>"});
 
-  CHECK_FALSE(detector.append("answer"));
-  CHECK(detector.text() == "answer");
+    CHECK_FALSE(detector.append("answer"));
+    CHECK(detector.text() == "answer");
 
-  CHECK(detector.append("<stop>"));
-  CHECK(detector.text() == "answer");
+    CHECK(detector.append("<stop>"));
+    CHECK(detector.text() == "answer");
 }
 
 TEST_CASE("stop detector deduplicates stop strings", "[completion]") {
-  octopus::llm::StopDetector detector({"<stop>", "", "<stop>", "<other>"});
+    octopus::llm::StopDetector detector({"<stop>", "", "<stop>", "<other>"});
 
-  REQUIRE(detector.stopStrings().size() == 2);
-  CHECK(detector.stopStrings()[0] == "<stop>");
-  CHECK(detector.stopStrings()[1] == "<other>");
+    REQUIRE(detector.stopStrings().size() == 2);
+    CHECK(detector.stopStrings()[0] == "<stop>");
+    CHECK(detector.stopStrings()[1] == "<other>");
 }
 
-TEST_CASE("stop-safe text buffer holds possible stop suffixes",
-          "[completion]") {
-  octopus::llm::StopSafeTextBuffer buffer({"<stop>"});
+TEST_CASE("stop-safe text buffer holds possible stop suffixes", "[completion]") {
+    octopus::llm::StopSafeTextBuffer buffer({"<stop>"});
 
-  CHECK(buffer.append("abcd") == "");
-  CHECK(buffer.append("ef") == "a");
-  CHECK(buffer.flush("abcdef") == "bcdef");
+    CHECK(buffer.append("abcd") == "");
+    CHECK(buffer.append("ef") == "a");
+    CHECK(buffer.flush("abcdef") == "bcdef");
 }
 
 TEST_CASE("stop-safe text buffer does not flush stop markers", "[completion]") {
-  octopus::llm::StopSafeTextBuffer buffer({"<stop>"});
+    octopus::llm::StopSafeTextBuffer buffer({"<stop>"});
 
-  std::string visible;
-  visible += buffer.append("answer<st");
-  visible += buffer.flush("answer");
+    std::string visible;
+    visible += buffer.append("answer<st");
+    visible += buffer.flush("answer");
 
-  CHECK(visible == "answer");
+    CHECK(visible == "answer");
 }
 
-TEST_CASE("stop-safe text buffer streams immediately without stops",
-          "[completion]") {
-  octopus::llm::StopSafeTextBuffer buffer({});
+TEST_CASE("stop-safe text buffer streams immediately without stops", "[completion]") {
+    octopus::llm::StopSafeTextBuffer buffer({});
 
-  CHECK(buffer.append("alpha") == "alpha");
-  CHECK(buffer.append(" beta") == " beta");
-  CHECK(buffer.flush("alpha beta") == "");
+    CHECK(buffer.append("alpha") == "alpha");
+    CHECK(buffer.append(" beta") == " beta");
+    CHECK(buffer.flush("alpha beta") == "");
 }
 
-TEST_CASE("loop detector catches repeated identical short lines",
-          "[completion]") {
-  octopus::llm::LoopDetector detector;
+TEST_CASE("loop detector catches repeated identical short lines", "[completion]") {
+    octopus::llm::LoopDetector detector;
 
-  CHECK_FALSE(detector.append("ready\n"));
-  CHECK_FALSE(detector.append("ready\n"));
-  CHECK_FALSE(detector.append("ready\n"));
+    CHECK_FALSE(detector.append("ready\n"));
+    CHECK_FALSE(detector.append("ready\n"));
+    CHECK_FALSE(detector.append("ready\n"));
 
-  CHECK(detector.append("ready\n"));
-  CHECK(detector.trimSize() == 6);
+    CHECK(detector.append("ready\n"));
+    CHECK(detector.trimSize() == 6);
 }
 
-TEST_CASE("loop detector catches repeated n-gram windows conservatively",
-          "[completion]") {
-  octopus::llm::LoopDetector detector;
+TEST_CASE("loop detector catches repeated n-gram windows conservatively", "[completion]") {
+    octopus::llm::LoopDetector detector;
 
-  CHECK_FALSE(detector.append("alpha beta gamma "));
-  CHECK_FALSE(detector.append("alpha beta gamma "));
-  CHECK_FALSE(detector.append("alpha beta gamma "));
+    CHECK_FALSE(detector.append("alpha beta gamma "));
+    CHECK_FALSE(detector.append("alpha beta gamma "));
+    CHECK_FALSE(detector.append("alpha beta gamma "));
 
-  CHECK(detector.append("alpha beta gamma "));
-  CHECK(detector.trimSize() == 17);
+    CHECK(detector.append("alpha beta gamma "));
+    CHECK(detector.trimSize() == 17);
 }
 
 TEST_CASE("loop detector ignores normal short answers", "[completion]") {
-  octopus::llm::LoopDetector detector;
+    octopus::llm::LoopDetector detector;
 
-  CHECK_FALSE(detector.append("Ready."));
-  CHECK_FALSE(detector.append(" The command completed successfully."));
-  CHECK_FALSE(detector.detected());
-  CHECK(detector.trimSize() == detector.generatedSize());
+    CHECK_FALSE(detector.append("Ready."));
+    CHECK_FALSE(detector.append(" The command completed successfully."));
+    CHECK_FALSE(detector.detected());
+    CHECK(detector.trimSize() == detector.generatedSize());
 }

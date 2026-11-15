@@ -1,5 +1,10 @@
-BasedOnStyle: Google
-Standard: c++17
-
-# Keep include order changes deliberate while the project is still small.
-SortIncludes: false
+BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 100
+MaxEmptyLinesToKeep: 1
+KeepEmptyLinesAtTheStartOfBlocks: false
+SeparateDefinitionBlocks: Always
+SortIncludes: CaseSensitive
+IncludeBlocks: Regroup
+NamespaceIndentation: None
+ReflowComments: false

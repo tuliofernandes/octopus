@@ -11,23 +11,17 @@
 #include "octopus/llm/types.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <memory>
 #include <string>
 #include <type_traits>
 #include <vector>
 
-TEST_CASE("public Octopus architecture headers remain includable",
-          "[headers]") {
-  using StopStrings = std::vector<std::string>;
+TEST_CASE("public Octopus architecture headers remain includable", "[headers]") {
+    using StopStrings = std::vector<std::string>;
 
-  STATIC_REQUIRE(std::is_default_constructible_v<octopus::CliOptions>);
-  STATIC_REQUIRE(
-      std::is_default_constructible_v<octopus::llm::CompletionRequest>);
-  STATIC_REQUIRE_FALSE(
-      std::is_move_constructible_v<octopus::inference::LlamaCppBackend>);
-  STATIC_REQUIRE_FALSE(
-      std::is_copy_constructible_v<octopus::inference::LlamaCppBackend>);
-  STATIC_REQUIRE(
-      std::is_constructible_v<octopus::llm::StopDetector, StopStrings>);
+    STATIC_REQUIRE(std::is_default_constructible_v<octopus::CliOptions>);
+    STATIC_REQUIRE(std::is_default_constructible_v<octopus::llm::CompletionRequest>);
+    STATIC_REQUIRE_FALSE(std::is_move_constructible_v<octopus::inference::LlamaCppBackend>);
+    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<octopus::inference::LlamaCppBackend>);
+    STATIC_REQUIRE(std::is_constructible_v<octopus::llm::StopDetector, StopStrings>);
 }

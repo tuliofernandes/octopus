@@ -4,5 +4,5 @@
 #include <string>
 
 namespace octopus::tool {
-std::filesystem::path resourceRoot(const std::string& command);
+std::filesystem::path resourceRoot(const std::string &command);
 }

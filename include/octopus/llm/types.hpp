@@ -12,150 +12,144 @@
 namespace octopus::llm {
 
 enum class Role {
-  System,
-  Developer,
-  User,
-  Assistant,
-  Tool,
+    System,
+    Developer,
+    User,
+    Assistant,
+    Tool,
 };
 
 struct Message {
-  Role role = Role::User;
-  std::string content;
-  std::vector<tool::Call> tool_calls{};
-  std::string tool_call_id{};
+    Role role = Role::User;
+    std::string content;
+    std::vector<tool::Call> tool_calls{};
+    std::string tool_call_id{};
 };
 
 struct Conversation {
-  std::vector<Message> messages;
-  std::vector<tool::Definition> tools{};
+    std::vector<Message> messages;
+    std::vector<tool::Definition> tools{};
 };
 
 enum class SamplerProfile {
-  Deterministic,
+    Deterministic,
 };
 
 struct GenerationOptions {
-  int max_tokens = 4096;
-  SamplerProfile sampler_profile = SamplerProfile::Deterministic;
-  int repeat_last_n = 0;
-  float repeat_penalty = 1.0F;
-  float frequency_penalty = 0.0F;
-  float presence_penalty = 0.0F;
-  bool quiet = true;
+    int max_tokens = 4096;
+    SamplerProfile sampler_profile = SamplerProfile::Deterministic;
+    int repeat_last_n = 0;
+    float repeat_penalty = 1.0F;
+    float frequency_penalty = 0.0F;
+    float presence_penalty = 0.0F;
+    bool quiet = true;
 };
 
 struct GenerationOptionsValidation {
-  bool ok = true;
-  std::string error;
+    bool ok = true;
+    std::string error;
 };
 
 using CancellationToken = core::CancellationToken;
 
-inline bool repeatPenaltyEnabled(const GenerationOptions& options) {
-  return options.repeat_penalty > 1.0F || options.frequency_penalty > 0.0F ||
-         options.presence_penalty > 0.0F;
+inline bool repeatPenaltyEnabled(const GenerationOptions &options) {
+    return options.repeat_penalty > 1.0F || options.frequency_penalty > 0.0F ||
+           options.presence_penalty > 0.0F;
 }
 
-inline GenerationOptionsValidation validateGenerationOptions(
-    const GenerationOptions& options) {
-  if (options.max_tokens <= 0) {
-    return {false, "max_tokens must be positive"};
-  }
-  if (options.repeat_last_n < 0) {
-    return {false, "repeat_last_n must be non-negative"};
-  }
-  if (!std::isfinite(options.repeat_penalty) || options.repeat_penalty < 1.0F) {
-    return {false, "repeat_penalty must be finite and at least 1.0"};
-  }
-  if (!std::isfinite(options.frequency_penalty) ||
-      options.frequency_penalty < 0.0F) {
-    return {false, "frequency_penalty must be finite and non-negative"};
-  }
-  if (!std::isfinite(options.presence_penalty) ||
-      options.presence_penalty < 0.0F) {
-    return {false, "presence_penalty must be finite and non-negative"};
-  }
-  if (repeatPenaltyEnabled(options) && options.repeat_last_n == 0) {
-    return {false, "repeat_last_n must be positive when penalties are enabled"};
-  }
+inline GenerationOptionsValidation validateGenerationOptions(const GenerationOptions &options) {
+    if (options.max_tokens <= 0) {
+        return {false, "max_tokens must be positive"};
+    }
+    if (options.repeat_last_n < 0) {
+        return {false, "repeat_last_n must be non-negative"};
+    }
+    if (!std::isfinite(options.repeat_penalty) || options.repeat_penalty < 1.0F) {
+        return {false, "repeat_penalty must be finite and at least 1.0"};
+    }
+    if (!std::isfinite(options.frequency_penalty) || options.frequency_penalty < 0.0F) {
+        return {false, "frequency_penalty must be finite and non-negative"};
+    }
+    if (!std::isfinite(options.presence_penalty) || options.presence_penalty < 0.0F) {
+        return {false, "presence_penalty must be finite and non-negative"};
+    }
+    if (repeatPenaltyEnabled(options) && options.repeat_last_n == 0) {
+        return {false, "repeat_last_n must be positive when penalties are enabled"};
+    }
 
-  return {};
+    return {};
 }
 
 enum class FinishReason {
-  Stop,
-  MaxTokens,
-  EndOfGeneration,
-  LoopDetected,
-  Cancelled,
+    Stop,
+    MaxTokens,
+    EndOfGeneration,
+    LoopDetected,
+    Cancelled,
 };
 
-template <typename Value>
-class Result final {
- public:
-  static Result success(Value value) { return Result(std::move(value)); }
+template <typename Value> class Result final {
+  public:
+    static Result success(Value value) { return Result(std::move(value)); }
 
-  static Result failure(std::string error) {
-    return Result(Error{std::move(error)});
-  }
+    static Result failure(std::string error) { return Result(Error{std::move(error)}); }
 
-  bool hasValue() const noexcept {
-    return std::holds_alternative<Value>(state_);
-  }
+    bool hasValue() const noexcept { return std::holds_alternative<Value>(state_); }
 
-  explicit operator bool() const noexcept { return hasValue(); }
+    explicit operator bool() const noexcept { return hasValue(); }
 
-  const Value& value() const { return std::get<Value>(state_); }
-  Value& value() { return std::get<Value>(state_); }
+    const Value &value() const { return std::get<Value>(state_); }
 
-  const std::string& error() const { return std::get<Error>(state_).message; }
+    Value &value() { return std::get<Value>(state_); }
 
- private:
-  struct Error {
-    std::string message;
-  };
+    const std::string &error() const { return std::get<Error>(state_).message; }
 
-  explicit Result(Value value) : state_(std::move(value)) {}
-  explicit Result(Error error) : state_(std::move(error)) {}
+  private:
+    struct Error {
+        std::string message;
+    };
 
-  std::variant<Value, Error> state_;
+    explicit Result(Value value) : state_(std::move(value)) {}
+
+    explicit Result(Error error) : state_(std::move(error)) {}
+
+    std::variant<Value, Error> state_;
 };
 
 struct RawCompletion {
-  std::string text;
-  FinishReason finish_reason = FinishReason::EndOfGeneration;
-  int generated_tokens = 0;
+    std::string text;
+    FinishReason finish_reason = FinishReason::EndOfGeneration;
+    int generated_tokens = 0;
 };
 
 struct AssistantResponse {
-  std::string text;
-  std::vector<tool::Call> tool_calls{};
+    std::string text;
+    std::vector<tool::Call> tool_calls{};
 };
 
 struct Completion {
-  AssistantResponse response;
-  FinishReason finish_reason = FinishReason::EndOfGeneration;
-  int generated_tokens = 0;
+    AssistantResponse response;
+    FinishReason finish_reason = FinishReason::EndOfGeneration;
+    int generated_tokens = 0;
 };
 
 using InferenceResult = Result<RawCompletion>;
 using CompletionResult = Result<Completion>;
 
 struct CompletionChunk {
-  std::string text;
+    std::string text;
 };
 
 class CompletionSink {
- public:
-  virtual ~CompletionSink() = default;
-  virtual void onText(const CompletionChunk& chunk) = 0;
+  public:
+    virtual ~CompletionSink() = default;
+    virtual void onText(const CompletionChunk &chunk) = 0;
 };
 
 struct CompletionRequest {
-  Conversation conversation;
-  GenerationOptions generation;
-  const CancellationToken* cancellation = nullptr;
+    Conversation conversation;
+    GenerationOptions generation;
+    const CancellationToken *cancellation = nullptr;
 };
 
-}  // namespace octopus::llm
+} // namespace octopus::llm

@@ -4,6 +4,7 @@
 #include <array>
 #include <string_view>
 #include <utility>
+
 namespace octopus::cli_detail {
 inline constexpr std::array<std::pair<std::string_view, std::string_view>, 2125> kNamedEntities{{
     {"AElig", "\xc3\x86"},

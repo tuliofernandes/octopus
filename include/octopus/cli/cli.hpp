@@ -6,31 +6,31 @@
 namespace octopus {
 
 enum class CliMode {
-  Interactive,
-  Ask,
+    Interactive,
+    Ask,
 };
 
 enum class CliModel {
-  Qwen35,
+    Qwen35,
 };
 
 struct CliOptions {
-  CliMode mode = CliMode::Interactive;
-  CliModel model = CliModel::Qwen35;
-  std::string prompt;
-  int n_predict = 4096;
-  int n_gpu_layers = 99;
-  bool quiet = true;
+    CliMode mode = CliMode::Interactive;
+    CliModel model = CliModel::Qwen35;
+    std::string prompt;
+    int n_predict = 4096;
+    int n_gpu_layers = 99;
+    bool quiet = true;
 };
 
 struct CliParseResult {
-  bool ok = false;
-  int exit_code = 1;
-  CliOptions options;
-  std::string error;
-  std::string help;
+    bool ok = false;
+    int exit_code = 1;
+    CliOptions options;
+    std::string error;
+    std::string help;
 };
 
-CliParseResult parseCli(const std::vector<std::string>& arguments);
+CliParseResult parseCli(const std::vector<std::string> &arguments);
 
-}  // namespace octopus
+} // namespace octopus
