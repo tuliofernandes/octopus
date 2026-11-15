@@ -51,7 +51,8 @@ class Registry {
  private:
   std::map<std::string, Entry> entries_;
 };
-void registerBuiltins(Registry& registry, const std::filesystem::path& root);
+// Discover manifests and load their accompanying in-process libraries.
+void loadTools(Registry& registry, const std::filesystem::path& root);
 struct AuthorizationDecision {
   bool allowed;
   std::string reason;

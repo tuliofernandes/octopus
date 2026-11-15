@@ -32,7 +32,7 @@ int main(int argc, char** argv) {
                                        qwen.modelIntegration().parser());
   octopus::llm::Runtime llm(model, backend);
   octopus::tool::Registry registry;
-  octopus::tool::registerBuiltins(registry, argv[2]);
+  octopus::tool::loadTools(registry, argv[2]);
   octopus::tool::AllowAllSecurityPolicy policy;
   octopus::tool::Executor executor(registry, policy);
   octopus::CliOptions options;

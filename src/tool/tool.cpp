@@ -1,6 +1,5 @@
 #include "octopus/tool/tool.hpp"
 #include <exception>
-#include <random>
 #include <regex>
 #include <stdexcept>
 #include <utility>
@@ -29,24 +28,6 @@ std::vector<Definition> Registry::definitions() const {
   for (const auto& entry : entries_)
     definitions.push_back(entry.second.definition);
   return definitions;
-}
-void registerBuiltins(Registry& registry, const std::filesystem::path& root) {
-  auto definition = loadManifest(root, "misc", "hello_world");
-  if (!registry.add(
-          std::move(definition),
-          [](const nlohmann::json&, const core::CancellationToken*) {
-            std::random_device seed;
-            std::mt19937 generator(seed());
-            std::uniform_int_distribution<int> distribution(1000, 99999);
-            return "Hello, world! Random number " +
-                   std::to_string(distribution(generator));
-          },
-          [](const nlohmann::json& args) -> std::string {
-            return args.is_object() && args.empty()
-                       ? ""
-                       : "expected an empty object";
-          }))
-    throw std::runtime_error("failed to register misc.hello_world");
 }
 Result Executor::execute(const Call& call,
                          const core::CancellationToken* cancellation) const {

@@ -205,12 +205,20 @@ runtime backend selection.
 ## Tool foundation
 
 The independent `octopus_tool` library loads JSON manifests from an explicit
-resource root and invokes registered builtins synchronously. Identifiers use
+resource root, discovers tools in category/name directories and loads their
+`tool` shared modules into the Octopus process. Each module exports the
+versioned `octopusToolModule` entry point declared in `octopus/tool/module.hpp`;
+it supplies the tool’s validator and handler. Modules must use a compatible C++
+ABI and nlohmann_json version, and are trusted native code: loading and running
+them is not sandboxed. Identifiers use
 lowercase letters, digits and underscores and start with a letter. Manifests declare object parameter schemas for the model; each registry entry
 must supply a validator that enforces its tool’s arguments. The loader checks
 the schema root, not full JSON Schema correctness, so authors must keep the
 manifest and validator consistent. `misc.hello_world` accepts only an empty
-object. The executor requires a
+object. Its implementation and manifest live in `tools/misc/hello_world/`,
+with tests in `tests/tools/misc/hello_world/`. CMake builds each module beside
+its copied manifest and installs both under `share/octopus/tools`; new modules
+need a corresponding build and install target. The executor requires a
 security policy; `AllowAllSecurityPolicy` permits every valid invocation and
 provides no isolation or permission enforcement. Interactive chat advertises registered tools and executes calls serially,
 then returns correlated results to the model. One-shot `ask` does not use tools.

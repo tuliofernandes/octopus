@@ -18,6 +18,10 @@ set(OCTOPUS_FORMAT_SOURCES
         include/octopus/tool/tool.hpp
         src/tool/tool.cpp
         src/tool/manifest.cpp
+        src/tool/loader.cpp
+        include/octopus/tool/module.hpp
+        tools/misc/hello_world/main.cpp
+        tests/tools/misc/hello_world/hello_world_test.cpp
         include/octopus/tool/resources.hpp
         src/tool/resources.cpp
         apps/octo/chat_session.hpp
@@ -93,9 +97,18 @@ target_include_directories(octopus_cli PUBLIC include)
 target_compile_features(octopus_cli PUBLIC cxx_std_17)
 target_compile_options(octopus_cli PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
-add_library(octopus_tool STATIC src/tool/tool.cpp src/tool/manifest.cpp src/tool/resources.cpp)
-file(COPY tools/ DESTINATION ${CMAKE_BINARY_DIR}/share/octopus/tools)
-install(DIRECTORY tools/ DESTINATION share/octopus/tools)
+add_library(octopus_tool STATIC src/tool/tool.cpp src/tool/manifest.cpp src/tool/resources.cpp src/tool/loader.cpp)
+file(COPY tools/ DESTINATION ${CMAKE_BINARY_DIR}/share/octopus/tools FILES_MATCHING PATTERN "manifest.json")
+install(DIRECTORY tools/ DESTINATION share/octopus/tools FILES_MATCHING PATTERN "manifest.json")
+add_library(octopus_tool_hello_world MODULE tools/misc/hello_world/main.cpp)
+target_include_directories(octopus_tool_hello_world PRIVATE include)
+target_compile_features(octopus_tool_hello_world PRIVATE cxx_std_17)
+target_compile_options(octopus_tool_hello_world PRIVATE -Wall -Wextra -Wpedantic -Werror)
+target_link_libraries(octopus_tool_hello_world PRIVATE nlohmann_json::nlohmann_json)
+set_target_properties(octopus_tool_hello_world PROPERTIES PREFIX "" OUTPUT_NAME "tool" LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/share/octopus/tools/misc/hello_world")
+install(TARGETS octopus_tool_hello_world LIBRARY DESTINATION share/octopus/tools/misc/hello_world)
+target_compile_definitions(octopus_tool PRIVATE OCTOPUS_MODULE_SUFFIX="${CMAKE_SHARED_MODULE_SUFFIX}")
+target_link_libraries(octopus_tool PUBLIC ${CMAKE_DL_LIBS})
 target_include_directories(octopus_tool PUBLIC include)
 target_compile_features(octopus_tool PUBLIC cxx_std_17)
 target_link_libraries(octopus_tool PUBLIC nlohmann_json::nlohmann_json)
@@ -144,6 +157,7 @@ target_link_libraries(octopus_inference_llama_cpp PUBLIC octopus_llm PRIVATE lla
 target_compile_options(octopus_inference_llama_cpp PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 add_executable(octo apps/octo/main.cpp apps/octo/chat_session.cpp)
+add_dependencies(octo octopus_tool_hello_world)
 target_include_directories(octo PRIVATE include src)
 target_compile_features(octo PUBLIC cxx_std_17)
 target_link_libraries(octo PRIVATE

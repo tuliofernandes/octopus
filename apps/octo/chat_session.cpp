@@ -12,8 +12,7 @@ int runChatSession(const octopus::CliOptions& options,
                    octopus::llm::Runtime& runtime, const std::string& command) {
   try {
     octopus::tool::Registry registry;
-    octopus::tool::registerBuiltins(registry,
-                                    octopus::tool::resourceRoot(command));
+    octopus::tool::loadTools(registry, octopus::tool::resourceRoot(command));
     octopus::tool::AllowAllSecurityPolicy policy;
     octopus::tool::Executor executor(registry, policy);
     auto base = octopus::makeConversationRequest(options, {});

@@ -2,6 +2,7 @@
 #include <fstream>
 #include "octopus/tool/tool.hpp"
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 #include <stdexcept>
 #include <fstream>
 using namespace octopus::tool;
@@ -77,29 +78,6 @@ TEST_CASE("security denial and cancellation prevent invocation") {
       executor.execute({"two", "misc.hello", nlohmann::json::object()}, &cancel)
           .status == Status::Cancelled);
   CHECK(calls == 0);
-}
-
-TEST_CASE("real builtin returns a greeting and an in-range number") {
-  Registry registry;
-  registerBuiltins(registry, TOOL_RESOURCE_ROOT);
-  AllowAllSecurityPolicy policy;
-  Executor executor(registry, policy);
-  CHECK(
-      executor.execute({"bad", "misc.hello_world", {{"extra", true}}}).status ==
-      Status::InvalidArguments);
-  CHECK(executor.execute({"bad", "misc.hello_world", 42}).status ==
-        Status::InvalidArguments);
-  auto result = executor.execute(
-      {"pilot-1", "misc.hello_world", nlohmann::json::object()});
-  REQUIRE(result.status == Status::Success);
-  CHECK(result.call_id == "pilot-1");
-  const std::string prefix = "Hello, world! Random number ";
-  REQUIRE(result.output.rfind(prefix, 0) == 0);
-  const auto digits = result.output.substr(prefix.size());
-  REQUIRE_FALSE(digits.empty());
-  REQUIRE(digits.find_first_not_of("0123456789") == std::string::npos);
-  CHECK(std::stoi(digits) >= 1000);
-  CHECK(std::stoi(digits) <= 99999);
 }
 
 TEST_CASE("policy and handler errors retain call correlation") {
@@ -318,4 +296,45 @@ TEST_CASE(
   CHECK(result.output == "validator failed");
   CHECK(result.call_id == "id");
   CHECK(calls == 0);
+}
+
+TEST_CASE(
+    "loader discovers a tool by its manifest without a built-in mapping") {
+  namespace fs = std::filesystem;
+  const auto root = fs::temp_directory_path() / "octopus-tool-discovery-test";
+  const auto dir = root / "other" / "greeting";
+  fs::remove_all(root);
+  fs::create_directories(dir);
+  {
+    std::ofstream manifest(dir / "manifest.json");
+    manifest
+        << R"({"schema_version":1,"category":"other","name":"greeting","description":"greeting","parameters":{"type":"object","properties":{},"additionalProperties":false},"permissions":[]})";
+  }
+  fs::copy_file(fs::path(TOOL_RESOURCE_ROOT) / "misc/hello_world" /
+                    (std::string("tool") + TOOL_MODULE_SUFFIX),
+                dir / (std::string("tool") + TOOL_MODULE_SUFFIX));
+  Registry registry;
+  loadTools(registry, root);
+  fs::remove_all(root);
+  AllowAllSecurityPolicy policy;
+  auto result =
+      Executor(registry, policy)
+          .execute({"id", "other.greeting", nlohmann::json::object()});
+  CHECK(result.status == Status::Success);
+  CHECK(result.output.rfind("Hello, world! Random number ", 0) == 0);
+}
+
+TEST_CASE("loader reports a missing tool library") {
+  namespace fs = std::filesystem;
+  const auto root = fs::temp_directory_path() / "octopus-missing-tool-test";
+  const auto dir = root / "misc" / "hello_world";
+  fs::remove_all(root);
+  fs::create_directories(dir);
+  fs::copy_file(fs::path(TOOL_RESOURCE_ROOT) / "misc/hello_world/manifest.json",
+                dir / "manifest.json");
+  Registry registry;
+  CHECK_THROWS_WITH(loadTools(registry, root),
+                    Catch::Matchers::ContainsSubstring("cannot load tool"));
+  CHECK(registry.definitions().empty());
+  fs::remove_all(root);
 }
