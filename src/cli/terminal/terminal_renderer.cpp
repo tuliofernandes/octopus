@@ -1,6 +1,7 @@
 #include "octopus/cli/terminal_renderer.hpp"
 
 #include "cli/terminal/text.hpp"
+#include "cli/terminal/named_entities.hpp"
 
 #include <md4c.h>
 
@@ -255,23 +256,18 @@ void appendUtf8(std::string& output, std::uint32_t value) {
 }
 
 std::string decodeEntity(std::string_view entity) {
-  if (entity == "&amp;") {
-    return "&";
-  }
-  if (entity == "&lt;") {
-    return "<";
-  }
-  if (entity == "&gt;") {
-    return ">";
-  }
-  if (entity == "&quot;") {
-    return "\"";
-  }
-  if (entity == "&apos;") {
-    return "'";
-  }
-  if (entity == "&nbsp;") {
-    return " ";
+  if (entity.size() >= 3 && entity.front() == '&' && entity.back() == ';' &&
+      entity[1] != '#') {
+    const auto name = entity.substr(1, entity.size() - 2);
+    const auto& entries = cli_detail::kNamedEntities;
+    const auto found =
+        std::lower_bound(entries.begin(), entries.end(), name,
+                         [](const auto& entry, std::string_view key) {
+                           return entry.first < key;
+                         });
+    return found != entries.end() && found->first == name
+               ? std::string(found->second)
+               : std::string(entity);
   }
   if (entity.size() < 4 || entity.front() != '&' || entity[1] != '#' ||
       entity.back() != ';') {
@@ -348,6 +344,8 @@ bool lineEmpty(const TerminalLine& line) noexcept { return line.runs.empty(); }
 
 class MarkdownBuilder final {
  public:
+  explicit MarkdownBuilder(std::optional<std::size_t> columns)
+      : columns_(columns) {}
   int enterBlock(MD_BLOCKTYPE type, void* detail) {
     switch (type) {
       case MD_BLOCK_DOC:
@@ -413,13 +411,22 @@ class MarkdownBuilder final {
         appendRun("---", {});
         finishLine();
         break;
-      case MD_BLOCK_HTML:
       case MD_BLOCK_TABLE:
+        separateBlock();
+        table_rows_.clear();
+        break;
       case MD_BLOCK_THEAD:
       case MD_BLOCK_TBODY:
+        break;
       case MD_BLOCK_TR:
+        table_rows_.emplace_back();
+        break;
       case MD_BLOCK_TH:
       case MD_BLOCK_TD:
+        if (table_rows_.empty() || detail == nullptr) return fail();
+        cell_alignment_ = static_cast<MD_BLOCK_TD_DETAIL*>(detail)->align;
+        break;
+      case MD_BLOCK_HTML:
         return fail();
     }
     return 0;
@@ -477,14 +484,19 @@ class MarkdownBuilder final {
           finishLine();
         }
         break;
+      case MD_BLOCK_TABLE:
+        finishTable();
+        break;
+      case MD_BLOCK_TH:
+      case MD_BLOCK_TD:
+        table_rows_.back().push_back({std::move(current_), cell_alignment_});
+        current_ = {};
+        break;
       case MD_BLOCK_HR:
       case MD_BLOCK_HTML:
-      case MD_BLOCK_TABLE:
       case MD_BLOCK_THEAD:
       case MD_BLOCK_TBODY:
       case MD_BLOCK_TR:
-      case MD_BLOCK_TH:
-      case MD_BLOCK_TD:
         break;
     }
     return 0;
@@ -530,7 +542,7 @@ class MarkdownBuilder final {
         }
         const auto& image = *static_cast<MD_SPAN_IMG_DETAIL*>(detail);
         appendRun("Image: ", currentStyle());
-        links_.push_back({copyAttribute(image.src), false});
+        links_.push_back({copyAttribute(image.src), false, true});
         break;
       }
       case MD_SPAN_LATEXMATH:
@@ -638,6 +650,7 @@ class MarkdownBuilder final {
   struct LinkState {
     std::string destination;
     bool autolink = false;
+    bool image = false;
   };
 
   int fail() noexcept {
@@ -649,6 +662,7 @@ class MarkdownBuilder final {
     TerminalTextStyle style;
     style.bold = strong_depth_ > 0 || heading_depth_ > 0;
     style.italic = emphasis_depth_ > 0;
+    style.underline = !links_.empty() && !links_.back().image;
     style.code = inline_code_depth_ > 0 || code_depth_ > 0;
     style.strikethrough = strikethrough_depth_ > 0;
     style.accent = heading_depth_ > 0;
@@ -663,6 +677,7 @@ class MarkdownBuilder final {
       auto& previous = current_.runs.back();
       if (previous.style.bold == style.bold &&
           previous.style.italic == style.italic &&
+          previous.style.underline == style.underline &&
           previous.style.code == style.code &&
           previous.style.strikethrough == style.strikethrough &&
           previous.style.accent == style.accent) {
@@ -739,6 +754,59 @@ class MarkdownBuilder final {
     appendRun(std::move(marker), {});
   }
 
+  struct TableCell {
+    TerminalLine line;
+    MD_ALIGN alignment;
+  };
+
+  void finishTable() {
+    std::vector<std::size_t> widths;
+    for (const auto& row : table_rows_) {
+      if (widths.size() < row.size()) widths.resize(row.size(), 0);
+      for (std::size_t i = 0; i < row.size(); ++i) {
+        std::size_t width = 0;
+        for (const auto& run : row[i].line.runs)
+          width += cli_detail::textCellWidth(run.text);
+        widths[i] = std::max(widths[i], width);
+      }
+    }
+    std::size_t table_width = 1;
+    for (auto width : widths) table_width += width + 3;
+    const bool compact =
+        (columns_.has_value() && table_width > *columns_) ||
+        (!table_rows_.empty() &&
+         table_width > kMaximumMarkdownBytes / table_rows_.size());
+    for (std::size_t r = 0; r < table_rows_.size(); ++r) {
+      addQuotePrefix();
+      appendRun("|", {});
+      for (std::size_t i = 0; i < table_rows_[r].size(); ++i) {
+        const auto& cell = table_rows_[r][i];
+        std::size_t width = 0;
+        for (const auto& run : cell.line.runs)
+          width += cli_detail::textCellWidth(run.text);
+        const auto padding = compact ? 0 : widths[i] - width;
+        const auto left = cell.alignment == MD_ALIGN_RIGHT    ? padding
+                          : cell.alignment == MD_ALIGN_CENTER ? padding / 2
+                                                              : 0;
+        appendRun(" " + std::string(left, ' '), {});
+        for (const auto& run : cell.line.runs) appendRun(run.text, run.style);
+        appendRun(std::string(padding - left, ' ') + " |", {});
+      }
+      finishLine();
+      if (r == 0) {
+        addQuotePrefix();
+        appendRun("|", {});
+        for (const auto width : widths)
+          appendRun(std::string(compact ? 3 : width + 2, '-') + "|", {});
+        finishLine();
+      }
+    }
+    table_rows_.clear();
+  }
+
+  std::vector<std::vector<TableCell>> table_rows_;
+  MD_ALIGN cell_alignment_ = MD_ALIGN_DEFAULT;
+  std::optional<std::size_t> columns_;
   TerminalDocument document_;
   TerminalLine current_;
   std::vector<ListState> lists_;
@@ -811,6 +879,9 @@ std::string stylePrefix(const TerminalTextStyle& style,
   if (style.italic) {
     codes.push_back("3");
   }
+  if (style.underline) {
+    codes.push_back("4");
+  }
   if (style.strikethrough) {
     codes.push_back("9");
   }
@@ -832,7 +903,7 @@ std::string stylePrefix(const TerminalTextStyle& style,
     }
   }
   const bool has_semantic_style =
-      style.bold || style.italic || style.strikethrough ||
+      style.bold || style.italic || style.underline || style.strikethrough ||
       (policy.color && (style.accent || style.code));
   if (!has_semantic_style) {
     return {};
@@ -1131,19 +1202,20 @@ std::string formatElapsed(std::chrono::steady_clock::duration elapsed) {
   return result;
 }
 
-std::optional<TerminalDocument> parseMarkdown(std::string_view markdown) {
+std::optional<TerminalDocument> parseMarkdown(
+    std::string_view markdown, std::optional<std::size_t> columns) {
   if (markdown.size() > kMaximumMarkdownBytes ||
       markdown.size() > std::numeric_limits<MD_SIZE>::max()) {
     return std::nullopt;
   }
 
-  MarkdownBuilder builder;
+  MarkdownBuilder builder(columns);
   MD_PARSER parser{};
   parser.abi_version = 0;
   parser.flags = MD_FLAG_NOHTMLBLOCKS | MD_FLAG_NOHTMLSPANS |
                  MD_FLAG_PERMISSIVEURLAUTOLINKS |
                  MD_FLAG_PERMISSIVEEMAILAUTOLINKS | MD_FLAG_STRIKETHROUGH |
-                 MD_FLAG_TASKLISTS;
+                 MD_FLAG_TASKLISTS | MD_FLAG_TABLES;
   parser.enter_block = enterBlock;
   parser.leave_block = leaveBlock;
   parser.enter_span = enterSpan;
@@ -1263,7 +1335,7 @@ void TranscriptRenderer::renderAssistant(std::string_view markdown) {
   std::string encoded;
   if (capabilities_.interactive_session && capabilities_.sgr_attributes) {
     try {
-      const auto document = parseMarkdown(sanitized);
+      const auto document = parseMarkdown(sanitized, currentWidth());
       if (document.has_value()) {
         encoded = encodeTerminalDocument(
             *document, {capabilities_.sgr_attributes, capabilities_.color,

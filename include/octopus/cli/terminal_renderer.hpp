@@ -71,6 +71,7 @@ std::string formatElapsed(std::chrono::steady_clock::duration elapsed);
 struct TerminalTextStyle {
   bool bold = false;
   bool italic = false;
+  bool underline = false;
   bool code = false;
   bool strikethrough = false;
   bool accent = false;
@@ -110,7 +111,9 @@ struct TerminalEncodingPolicy {
   std::optional<TerminalRgb> terminal_background;
 };
 
-std::optional<TerminalDocument> parseMarkdown(std::string_view markdown);
+std::optional<TerminalDocument> parseMarkdown(
+    std::string_view markdown,
+    std::optional<std::size_t> columns = std::nullopt);
 std::string encodeTerminalDocument(const TerminalDocument& document,
                                    TerminalEncodingPolicy policy);
 

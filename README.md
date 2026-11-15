@@ -149,8 +149,10 @@ supports headings, emphasis/strong text, lists and task items, inline and
 fenced code, links, block quotes, line breaks, autolinks, and strikethrough. It
 uses native
 terminal wrapping; there is no response gutter, manual response wrapping,
-alternate screen, cursor hiding, or OSC hyperlink. Tables receive no special
-layout, and raw HTML remains visible literal text. Cancellation clears the
+alternate screen, cursor hiding, or OSC hyperlink. Tables are aligned when they
+fit the terminal; wider tables retain their rows and use native wrapping. Links
+are underlined, and named HTML entities are decoded. Raw HTML remains visible
+literal text. Cancellation clears the
 spinner and does not publish a partial answer.
 
 Enhanced rendering requires TTY stdin and stdout, a non-empty `TERM` other than

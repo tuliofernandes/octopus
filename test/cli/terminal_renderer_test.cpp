@@ -437,3 +437,47 @@ TEST_CASE("plain response preserves sanitized Markdown without chrome",
   CHECK(buffer.text == "# Raw\n[31mtext\n\n");
   CHECK(buffer.text.find('\x1b') == std::string::npos);
 }
+
+TEST_CASE("Markdown tables preserve rows, alignment and inline formatting",
+          "[terminal-renderer]") {
+  const auto document = octopus::parseMarkdown(
+      "| Animal | Count |\n| :--- | ---: |\n| **Gato** | 12 |\n"
+      "| cão | 3 |\n");
+  REQUIRE(document.has_value());
+  const auto plain = octopus::encodeTerminalDocument(*document, {false, false});
+  CHECK(plain ==
+        "| Animal | Count |\n|--------|-------|\n"
+        "| Gato   |    12 |\n| cão    |     3 |");
+  const auto styled = octopus::encodeTerminalDocument(*document, {true, false});
+  CHECK(styled.find("\x1b[1mGato\x1b[0m") != std::string::npos);
+}
+
+TEST_CASE("Markdown decodes named entities in content and link destinations",
+          "[terminal-renderer]") {
+  const auto document = octopus::parseMarkdown(
+      "&copy; &NotEqualTilde; &CounterClockwiseContourIntegral; "
+      "&unrecognized; [site](https://example.com/?a=1&amp;b=2)");
+  REQUIRE(document.has_value());
+  const auto plain = octopus::encodeTerminalDocument(*document, {false, false});
+  CHECK(plain.find("© ≂̸ ∳ &unrecognized;") != std::string::npos);
+  CHECK(plain.find("https://example.com/?a=1&b=2") != std::string::npos);
+}
+
+TEST_CASE("Markdown links are underlined without requiring color",
+          "[terminal-renderer]") {
+  const auto document = octopus::parseMarkdown("[link](https://example.com)");
+  REQUIRE(document.has_value());
+  const auto styled = octopus::encodeTerminalDocument(*document, {true, false});
+  CHECK(styled.find("\x1b[4mlink") != std::string::npos);
+  const auto plain = octopus::encodeTerminalDocument(*document, {false, false});
+  CHECK(plain == "link (https://example.com)");
+}
+
+TEST_CASE("wide tables retain their rows in narrow terminals",
+          "[terminal-renderer]") {
+  const auto document = octopus::parseMarkdown(
+      "| Long heading | Amount |\n| --- | ---: |\n| Dog | 10 |\n", 12);
+  REQUIRE(document.has_value());
+  const auto plain = octopus::encodeTerminalDocument(*document, {false, false});
+  CHECK(plain == "| Long heading | Amount |\n|---|---|\n| Dog | 10 |");
+}
