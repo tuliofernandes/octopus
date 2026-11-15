@@ -54,4 +54,4 @@ class LoopDetector {
     bool detected_ = false;
 };
 
-} // namespace octopus::llm
+} /* namespace octopus::llm */

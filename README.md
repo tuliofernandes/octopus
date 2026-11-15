@@ -147,6 +147,7 @@ chooses a distinct nearby 256-color value. Unsupported terminals simply omit
 the response background rather than assuming a fixed color. The final response
 supports headings, emphasis/strong text, lists and task items, inline and
 fenced code, links, block quotes, line breaks, autolinks, and strikethrough.
+Thematic breaks are drawn as horizontal lines, bounded by terminal width.
 Block quotes use vertical bars on each line, including wrapped lines; terminals
 without UTF-8 use ASCII bars. Other content uses native
 terminal wrapping; there is no response gutter, manual response wrapping,

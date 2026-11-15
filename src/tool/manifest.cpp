@@ -31,4 +31,4 @@ Definition loadManifest(const std::filesystem::path &root, const std::string &ca
         throw std::runtime_error("invalid manifest " + path.string() + ": " + e.what());
     }
 }
-} // namespace octopus::tool
+} /* namespace octopus::tool */

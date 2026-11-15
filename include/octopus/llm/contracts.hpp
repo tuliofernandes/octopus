@@ -66,8 +66,8 @@ class InferenceBackend {
 class ChatTemplateEngine {
   public:
     virtual ~ChatTemplateEngine() = default;
-    // The engine may borrow request storage only for this blocking call. Results
-    // own rendered text and never expose backend-native handles or string views.
+    /* The engine may borrow request storage only for this blocking call. Results */
+    /* own rendered text and never expose backend-native handles or string views. */
     virtual TemplateRenderResult render(const ChatTemplateRequest &request) const = 0;
 };
 
@@ -94,4 +94,4 @@ class ModelIntegration final {
     const AssistantResponseParser &parser_;
 };
 
-} // namespace octopus::llm
+} /* namespace octopus::llm */

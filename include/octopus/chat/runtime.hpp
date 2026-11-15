@@ -26,4 +26,4 @@ class Runtime final {
     std::size_t next_id_ = 1;
     llm::Conversation history_;
 };
-} // namespace octopus::chat
+} /* namespace octopus::chat */

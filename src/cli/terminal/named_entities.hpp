@@ -1,5 +1,5 @@
-// HTML5 named character references from Python html.entities.html5.
-// Names omit their required semicolon; values are UTF-8.
+/* HTML5 named character references from Python html.entities.html5. */
+/* Names omit their required semicolon; values are UTF-8. */
 #pragma once
 #include <array>
 #include <string_view>

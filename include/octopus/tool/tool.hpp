@@ -33,7 +33,7 @@ struct Result {
 };
 
 using Handler = std::function<std::string(const nlohmann::json &, const core::CancellationToken *)>;
-// Returns an empty string for valid arguments or a diagnostic otherwise.
+/* Returns an empty string for valid arguments or a diagnostic otherwise. */
 using ArgumentValidator = std::function<std::string(const nlohmann::json &)>;
 
 struct Entry {
@@ -52,7 +52,7 @@ class Registry {
     std::map<std::string, Entry> entries_;
 };
 
-// Discover manifests and load their accompanying in-process libraries.
+/* Discover manifests and load their accompanying in-process libraries. */
 void loadTools(Registry &registry, const std::filesystem::path &root);
 
 struct AuthorizationDecision {
@@ -84,4 +84,4 @@ class Executor {
     const Registry &registry_;
     const SecurityPolicy &policy_;
 };
-} // namespace octopus::tool
+} /* namespace octopus::tool */

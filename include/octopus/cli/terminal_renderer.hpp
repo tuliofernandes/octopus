@@ -142,4 +142,4 @@ class TranscriptRenderer final {
     bool activity_visible_ = false;
 };
 
-} // namespace octopus
+} /* namespace octopus */

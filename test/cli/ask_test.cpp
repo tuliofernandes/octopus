@@ -70,7 +70,7 @@ class RuntimeHarness final {
     octopus::llm::Runtime runtime;
 };
 
-} // namespace
+} /* namespace */
 
 TEST_CASE("ask options build a model-neutral completion request", "[ask]") {
     octopus::CliOptions options;

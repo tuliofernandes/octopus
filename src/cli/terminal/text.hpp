@@ -18,4 +18,4 @@ std::size_t nextCodePointBoundary(std::string_view text, std::size_t offset) noe
 std::size_t terminalCellWidth(std::uint32_t code_point) noexcept;
 std::size_t textCellWidth(std::string_view text) noexcept;
 
-} // namespace octopus::cli_detail
+} /* namespace octopus::cli_detail */

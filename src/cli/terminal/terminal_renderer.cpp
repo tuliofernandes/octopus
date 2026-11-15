@@ -274,7 +274,7 @@ std::string stylePrefix(const TerminalTextStyle &style, TerminalEncodingPolicy p
     return prefix;
 }
 
-} // namespace
+} /* namespace */
 
 TerminalCapabilities
 makeTerminalCapabilities(bool input_is_tty, bool output_is_tty, std::string_view term,
@@ -558,4 +558,4 @@ std::string encodeTerminalDocument(const TerminalDocument &document,
     return output;
 }
 
-} // namespace octopus
+} /* namespace octopus */

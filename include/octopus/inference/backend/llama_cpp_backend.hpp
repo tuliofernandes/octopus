@@ -8,17 +8,17 @@
 
 namespace octopus::inference {
 
-// Runtime knobs needed to load the local llama.cpp model. These are
-// deliberately not exposed as general CLI flags yet; the harness owns the
-// default policy.
+/* Runtime knobs needed to load the local llama.cpp model. These are */
+/* deliberately not exposed as general CLI flags yet; the harness owns the */
+/* default policy. */
 struct LlamaCppBackendOptions {
     std::string model_path;
     int n_gpu_layers = 99;
     bool quiet = true;
 };
 
-// Concrete execution and metadata-template adapter for llama.cpp. The public
-// type stays small; Impl owns the native resources and API details.
+/* Concrete execution and metadata-template adapter for llama.cpp. The public */
+/* type stays small; Impl owns the native resources and API details. */
 class LlamaCppBackend final : public llm::InferenceBackend, public llm::ChatTemplateEngine {
   public:
     explicit LlamaCppBackend(LlamaCppBackendOptions options);
@@ -40,4 +40,4 @@ class LlamaCppBackend final : public llm::InferenceBackend, public llm::ChatTemp
     std::unique_ptr<Impl> impl_;
 };
 
-} // namespace octopus::inference
+} /* namespace octopus::inference */

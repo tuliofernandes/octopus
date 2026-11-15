@@ -94,7 +94,7 @@ int runProbe(const std::string &model_path, int gpu_layers, const std::string &p
     return 0;
 }
 
-} // namespace
+} /* namespace */
 
 int main(int argc, char **argv) {
     if (argc != 5) {

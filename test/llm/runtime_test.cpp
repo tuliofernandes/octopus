@@ -91,7 +91,7 @@ octopus::llm::ParseResult parsedSuccess() {
     return octopus::llm::ParseResult::success({"parsed answer"});
 }
 
-} // namespace
+} /* namespace */
 
 TEST_CASE("result contracts make success and failure mutually exclusive", "[llm]") {
     STATIC_REQUIRE_FALSE(std::is_aggregate_v<octopus::llm::CompileResult>);

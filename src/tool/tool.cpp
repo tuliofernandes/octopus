@@ -51,4 +51,4 @@ Result Executor::execute(const Call &call, const core::CancellationToken *cancel
         return {call.id, Status::Failure, error.what()};
     }
 }
-} // namespace octopus::tool
+} /* namespace octopus::tool */

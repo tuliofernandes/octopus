@@ -30,4 +30,4 @@ std::filesystem::path resourceRoot(const std::string &command) {
     return directory.parent_path() / "share/octopus/tools";
 }
 
-} // namespace octopus::tool
+} /* namespace octopus::tool */

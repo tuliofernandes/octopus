@@ -9,8 +9,8 @@
 namespace octopus {
 namespace {
 
-// These prompts are the first Octopus policy layer. They are intentionally
-// short: the harness should shape behavior without drowning out the user.
+/* These prompts are the first Octopus policy layer. They are intentionally */
+/* short: the harness should shape behavior without drowning out the user. */
 constexpr const char *kSystemPrompt = "You are Octopus, an AI agent for UNIX.";
 
 constexpr const char *kDeveloperPrompt =
@@ -19,24 +19,24 @@ constexpr const char *kDeveloperPrompt =
 constexpr int kAskRepeatLastN = 64;
 constexpr float kAskRepeatPenalty = 1.05F;
 
-// Only transport/backend failures should make the CLI fail. Other finish
-// reasons, including loop detection, can still produce user-visible text.
+/* Only transport/backend failures should make the CLI fail. Other finish */
+/* reasons, including loop detection, can still produce user-visible text. */
 bool completionFailed(const llm::CompletionResult &completion) { return !completion.hasValue(); }
 
-} // namespace
+} /* namespace */
 
 llm::CompletionRequest makeConversationRequest(const CliOptions &options,
                                                const llm::Conversation &conversation) {
     llm::CompletionRequest request;
-    // Keep the conversation structured as long as possible. Rendering to one
-    // model-specific prompt string happens later in the backend.
+    /* Keep the conversation structured as long as possible. Rendering to one */
+    /* model-specific prompt string happens later in the backend. */
     request.conversation.messages.push_back({llm::Role::System, kSystemPrompt});
     request.conversation.messages.push_back({llm::Role::Developer, kDeveloperPrompt});
     request.conversation.messages.insert(request.conversation.messages.end(),
                                          conversation.messages.begin(),
                                          conversation.messages.end());
-    // CLI requests are deterministic and conservative for now: useful for
-    // testing, reproducibility, and reducing small-model repetition.
+    /* CLI requests are deterministic and conservative for now: useful for */
+    /* testing, reproducibility, and reducing small-model repetition. */
     request.generation.max_tokens = options.n_predict;
     request.generation.sampler_profile = llm::SamplerProfile::Deterministic;
     request.generation.quiet = options.quiet;
@@ -68,4 +68,4 @@ AskRunResult runOneShotAsk(const CliOptions &options, llm::Runtime &runtime, std
     return {0, std::move(completion)};
 }
 
-} // namespace octopus
+} /* namespace octopus */

@@ -32,7 +32,7 @@ int runWithModel(const octopus::CliOptions &options, const std::string &model_pa
     return runChatSession(options, runtime, command);
 }
 
-} // namespace
+} /* namespace */
 
 int main(int argc, char **argv) {
     const auto cli = octopus::parseCli(argvToStrings(argc, argv));

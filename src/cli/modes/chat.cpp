@@ -65,7 +65,7 @@ class ChatOutputSink final : public llm::CompletionSink {
     void onText(const llm::CompletionChunk &) override {}
 };
 
-} // namespace
+} /* namespace */
 
 ChatRunResult runCliChat(const CliOptions &options, llm::Runtime &runtime, std::istream &in,
                          std::ostream &out, std::ostream &err, chat::Runtime *tool_runtime) {
@@ -148,4 +148,4 @@ ChatRunResult runCliChat(const CliOptions &options, llm::Runtime &runtime, std::
     }
 }
 
-} // namespace octopus
+} /* namespace octopus */

@@ -16,9 +16,9 @@ def generate():
     entries = sorted((key[:-1], value) for key, value in html.entities.html5.items()
                      if key.endswith(';'))
     lines = [
-        '// HTML5 named character references from Python html.entities.html5.\n',
-        '// Names omit their required semicolon; values are UTF-8.\n',
-        '#pragma once\n#include <array>\n#include <string_view>\n#include <utility>\n',
+        '/* HTML5 named character references from Python html.entities.html5. */\n',
+        '/* Names omit their required semicolon; values are UTF-8. */\n',
+        '#pragma once\n#include <array>\n#include <string_view>\n#include <utility>\n\n',
         'namespace octopus::cli_detail {\n',
         'inline constexpr std::array<std::pair<std::string_view, std::string_view>, '
         f'{len(entries)}> kNamedEntities{{{{\n',

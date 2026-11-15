@@ -26,4 +26,4 @@ class Runtime final {
     InferenceBackend &backend_;
 };
 
-} // namespace octopus::llm
+} /* namespace octopus::llm */

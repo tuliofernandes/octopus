@@ -37,7 +37,7 @@ octopus::llm::Conversation policyConversation() {
     return conversation;
 }
 
-} // namespace
+} /* namespace */
 
 TEST_CASE("Qwen3.5 integration remains immovable while borrowing its engine", "[qwen35]") {
     STATIC_REQUIRE_FALSE(

@@ -29,4 +29,4 @@ inline void checkModelIntegrationContract(const llm::ModelIntegration &integrati
     static_cast<void>(integration.capabilities());
 }
 
-} // namespace octopus::test
+} /* namespace octopus::test */

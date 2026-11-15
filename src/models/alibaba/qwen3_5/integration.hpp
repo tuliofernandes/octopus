@@ -39,4 +39,4 @@ class Qwen35Integration final {
     llm::ModelIntegration integration_;
 };
 
-} // namespace octopus::models::alibaba::qwen3_5
+} /* namespace octopus::models::alibaba::qwen3_5 */

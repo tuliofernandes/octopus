@@ -41,7 +41,7 @@ class Backend : public octopus::llm::InferenceBackend {
             {calls++ == 0 ? "call" : "done", octopus::llm::FinishReason::EndOfGeneration, 0});
     }
 };
-} // namespace
+} /* namespace */
 
 TEST_CASE("chat executes one call and passes its correlated result to the next "
           "generation") {

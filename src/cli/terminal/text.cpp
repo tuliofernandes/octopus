@@ -23,7 +23,7 @@ bool isWide(std::uint32_t value) noexcept {
             (value >= 0x1F300U && value <= 0x1FAFFU) || (value >= 0x20000U && value <= 0x3FFFDU));
 }
 
-} // namespace
+} /* namespace */
 
 DecodedCodePoint decodeCodePoint(std::string_view text, std::size_t offset) noexcept {
     if (offset >= text.size()) {
@@ -109,4 +109,4 @@ std::size_t textCellWidth(std::string_view text) noexcept {
     return width;
 }
 
-} // namespace octopus::cli_detail
+} /* namespace octopus::cli_detail */

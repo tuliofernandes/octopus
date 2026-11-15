@@ -182,12 +182,30 @@ class MarkdownBuilder final {
             }
             ensureLinePrefix();
             break;
-        case MD_BLOCK_HR:
+        case MD_BLOCK_HR: {
             separateBlock();
             ensureLinePrefix();
-            appendRun("---", {});
+            std::size_t prefix_width = quote_depth_ > 0 ? quote_depth_ + 1 : 0;
+            for (const auto &list : lists_) {
+                appendRun(std::string(list.marker_width, ' '), {});
+                prefix_width += list.marker_width;
+            }
+
+            constexpr std::size_t kDefaultRuleWidth = 40;
+            constexpr std::size_t kMaximumRuleWidth = 160;
+            std::size_t available = kDefaultRuleWidth;
+            if (columns_.has_value()) {
+                available = *columns_ > prefix_width ? *columns_ - prefix_width : 1;
+            }
+            available = std::min(available, kMaximumRuleWidth);
+            std::string rule;
+            for (std::size_t i = 0; i < available; ++i) {
+                rule += utf8_ ? "─" : "-";
+            }
+            appendRun(std::move(rule), {});
             finishLine();
             break;
+        }
         case MD_BLOCK_TABLE:
             separateBlock();
             table_rows_.clear();
@@ -702,7 +720,7 @@ int renderText(MD_TEXTTYPE type, const MD_CHAR *text, MD_SIZE size, void *userda
     });
 }
 
-} // namespace
+} /* namespace */
 
 std::optional<TerminalDocument> parseMarkdown(std::string_view markdown,
                                               std::optional<std::size_t> columns, bool utf8) {
@@ -731,4 +749,4 @@ std::optional<TerminalDocument> parseMarkdown(std::string_view markdown,
     return builder.finish();
 }
 
-} // namespace octopus
+} /* namespace octopus */

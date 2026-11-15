@@ -8,7 +8,7 @@ CompletionResult rawResult(const RawCompletion &raw) {
         {AssistantResponse{raw.text}, raw.finish_reason, raw.generated_tokens});
 }
 
-} // namespace
+} /* namespace */
 
 CompletionResult Runtime::complete(const CompletionRequest &request) {
     return completeImpl(request, nullptr);
@@ -52,4 +52,4 @@ CompletionResult Runtime::completeImpl(const CompletionRequest &request, Complet
     return CompletionResult::success({parsed.value(), raw.finish_reason, raw.generated_tokens});
 }
 
-} // namespace octopus::llm
+} /* namespace octopus::llm */

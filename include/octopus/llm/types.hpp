@@ -152,4 +152,4 @@ struct CompletionRequest {
     const CancellationToken *cancellation = nullptr;
 };
 
-} // namespace octopus::llm
+} /* namespace octopus::llm */

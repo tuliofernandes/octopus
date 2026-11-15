@@ -22,8 +22,8 @@ struct InputEditorResult {
     std::string text;
 };
 
-// Public REPL input facade. It owns prompt policy and hides terminal editing
-// details from chat/session callers.
+/* Public REPL input facade. It owns prompt policy and hides terminal editing */
+/* details from chat/session callers. */
 class InputEditor {
   public:
     InputEditor(std::istream &in, std::ostream &out, InputEditorPrompts prompts);
@@ -37,4 +37,4 @@ class InputEditor {
     InputEditorPrompts prompts_;
 };
 
-} // namespace octopus
+} /* namespace octopus */

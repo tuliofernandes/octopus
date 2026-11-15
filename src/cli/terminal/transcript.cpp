@@ -19,7 +19,7 @@ void ensureTranscriptEnding(std::string &output) {
     output += "\n\n";
 }
 
-} // namespace
+} /* namespace */
 
 TranscriptRenderer::TranscriptRenderer(std::ostream &out, TerminalCapabilities capabilities,
                                        WidthQuery width_query,
@@ -189,4 +189,4 @@ void TranscriptRenderer::runSpinner() noexcept {
     }
 }
 
-} // namespace octopus
+} /* namespace octopus */

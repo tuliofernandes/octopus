@@ -70,7 +70,7 @@ octopus::TerminalCapabilities enhancedCapabilities() {
     return capabilities;
 }
 
-} // namespace
+} /* namespace */
 
 TEST_CASE("terminal capability policy separates NO_COLOR from controls", "[terminal-renderer]") {
     const auto colored =
@@ -538,4 +538,44 @@ TEST_CASE("blank lines between quoted paragraphs retain their bars", "[terminal-
     const auto ascii = octopus::parseMarkdown("> First.\n>\n> Second.\n", std::nullopt, false);
     REQUIRE(ascii.has_value());
     CHECK(octopus::encodeTerminalDocument(*ascii, {false, false}) == "| First.\n|\n| Second.");
+}
+
+TEST_CASE("Markdown thematic breaks fill the available terminal width", "[terminal-renderer]") {
+    const auto document = octopus::parseMarkdown("Before\n\n---\n\nAfter", 8);
+    REQUIRE(document.has_value());
+    CHECK(octopus::encodeTerminalDocument(*document, {false, false}) ==
+          "Before\n\n────────\n\nAfter");
+
+    const auto ascii = octopus::parseMarkdown("---", 5, false);
+    REQUIRE(ascii.has_value());
+    CHECK(octopus::encodeTerminalDocument(*ascii, {false, false}) == "-----");
+
+    const auto quote = octopus::parseMarkdown("> ---", 8);
+    REQUIRE(quote.has_value());
+    CHECK(octopus::encodeTerminalDocument(*quote, {false, false}) == "│ ──────");
+
+    const auto narrow = octopus::parseMarkdown("> ---", 1);
+    REQUIRE(narrow.has_value());
+    CHECK(octopus::encodeTerminalDocument(*narrow, {false, false}) == "│ ─");
+}
+
+TEST_CASE("thematic breaks remain raw in redirected output", "[terminal-renderer]") {
+    RecordingBuffer buffer;
+    std::ostream out(&buffer);
+    octopus::TranscriptRenderer renderer(out, {});
+    renderer.renderAssistant("Before\n\n---\n\nAfter");
+    CHECK(buffer.text == "Before\n\n---\n\nAfter\n\n");
+}
+
+TEST_CASE("thematic break width is bounded and list indentation is preserved",
+          "[terminal-renderer]") {
+    const auto no_width = octopus::parseMarkdown("---");
+    REQUIRE(no_width.has_value());
+    CHECK(octopus::encodeTerminalDocument(*no_width, {false, false}) ==
+          "────────────────────────────────────────");
+
+    const auto list = octopus::parseMarkdown("- item\n\n  ---\n", 8);
+    REQUIRE(list.has_value());
+    const auto plain = octopus::encodeTerminalDocument(*list, {false, false});
+    CHECK(plain.find("  ──────") != std::string::npos);
 }

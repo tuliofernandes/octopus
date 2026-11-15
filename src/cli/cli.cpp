@@ -64,7 +64,7 @@ bool containsLowLevelFlag(const std::vector<std::string> &arguments, std::string
     return true;
 }
 
-} // namespace
+} /* namespace */
 
 CliParseResult parseCli(const std::vector<std::string> &arguments) {
     if (arguments.empty()) {
@@ -145,4 +145,4 @@ CliParseResult parseCli(const std::vector<std::string> &arguments) {
     return result;
 }
 
-} // namespace octopus
+} /* namespace octopus */

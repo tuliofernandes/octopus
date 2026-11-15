@@ -88,7 +88,7 @@ MessageCompilation makeTemplateMessages(const llm::Conversation &conversation) {
     return result;
 }
 
-} // namespace
+} /* namespace */
 
 llm::CompileResult Qwen35PromptCompiler::compile(const llm::Conversation &conversation) const {
     auto compiled_messages = makeTemplateMessages(conversation);
@@ -177,4 +177,4 @@ Qwen35Integration::Qwen35Integration(const llm::ChatTemplateEngine &template_eng
     : compiler_(template_engine), parser_(),
       integration_({true, false, false}, compiler_, parser_) {}
 
-} // namespace octopus::models::alibaba::qwen3_5
+} /* namespace octopus::models::alibaba::qwen3_5 */

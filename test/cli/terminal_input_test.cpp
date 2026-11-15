@@ -212,7 +212,7 @@ class SimpleTerminalScreen final {
     bool pending_wrap_ = false;
 };
 
-} // namespace
+} /* namespace */
 
 TEST_CASE("terminal input inserts text at the cursor after left arrow", "[terminal-input]") {
     octopus::TerminalLineEditor editor;

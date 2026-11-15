@@ -133,7 +133,7 @@ octopus::llm::InferenceResult successfulCompletion(std::string text) {
         {std::move(text), octopus::llm::FinishReason::EndOfGeneration, 0});
 }
 
-} // namespace
+} /* namespace */
 
 TEST_CASE("CLI chat sends one user line and exits cleanly on EOF", "[chat]") {
     RuntimeHarness<RecordingBackend> harness(

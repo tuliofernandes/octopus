@@ -49,4 +49,4 @@ void loadTools(Registry &registry, const std::filesystem::path &root) {
             throw std::runtime_error("failed to register tool: " + dir.string());
     }
 }
-} // namespace octopus::tool
+} /* namespace octopus::tool */

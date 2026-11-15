@@ -22,7 +22,7 @@ InputEditorStatus toInputEditorStatus(TerminalReadStatus status) {
     return InputEditorStatus::EndOfFile;
 }
 
-} // namespace
+} /* namespace */
 
 InputEditor::InputEditor(std::istream &in, std::ostream &out, InputEditorPrompts prompts)
     : in_(in), out_(out), prompts_(std::move(prompts)) {}
@@ -40,4 +40,4 @@ std::optional<std::string> InputEditor::readText() {
     return result.text;
 }
 
-} // namespace octopus
+} /* namespace octopus */

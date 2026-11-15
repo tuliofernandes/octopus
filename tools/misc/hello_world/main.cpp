@@ -13,7 +13,7 @@ std::string execute(const nlohmann::json &, const octopus::core::CancellationTok
     std::uniform_int_distribution<int> distribution(1000, 99999);
     return "Hello, world! Random number " + std::to_string(distribution(generator));
 }
-} // namespace
+} /* namespace */
 
 extern "C" const octopus::tool::ToolModule *octopusToolModule() {
     static const octopus::tool::ToolModule module{octopus::tool::kToolModuleVersion, validate,

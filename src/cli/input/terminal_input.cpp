@@ -212,7 +212,7 @@ TerminalReadResult readRawInput(std::ostream &out, std::string_view prompt,
     }
 }
 
-} // namespace
+} /* namespace */
 
 TerminalInputEvent TerminalLineEditor::feed(char byte) {
     const unsigned char unsigned_byte = static_cast<unsigned char>(byte);
@@ -674,4 +674,4 @@ TerminalInputMetrics measureTerminalInput(std::string_view prompt,
     return metrics;
 }
 
-} // namespace octopus
+} /* namespace octopus */

@@ -19,8 +19,8 @@ struct TerminalInputEvent {
     std::string text;
 };
 
-// A byte-storing line editor that validates UTF-8 and keeps cursor/edit
-// operations on code-point boundaries.
+/* A byte-storing line editor that validates UTF-8 and keeps cursor/edit */
+/* operations on code-point boundaries. */
 class TerminalLineEditor {
   public:
     TerminalInputEvent feed(char byte);
@@ -85,8 +85,8 @@ struct TerminalInputMetrics {
     TerminalScreenPosition end;
 };
 
-// Pure display-cell layout used by the raw editor. Cursor offsets remain byte
-// offsets but must be at UTF-8 code-point boundaries.
+/* Pure display-cell layout used by the raw editor. Cursor offsets remain byte */
+/* offsets but must be at UTF-8 code-point boundaries. */
 TerminalInputMetrics measureTerminalInput(std::string_view prompt,
                                           std::string_view continuation_prompt,
                                           std::string_view line, std::size_t cursor,
@@ -103,9 +103,9 @@ struct TerminalReadResult {
     std::string text;
 };
 
-// Low-level terminal input reader used by InputEditor. Real TTY stdin/stdout
-// uses raw-mode editing; all other streams use cooked std::getline semantics.
+/* Low-level terminal input reader used by InputEditor. Real TTY stdin/stdout */
+/* uses raw-mode editing; all other streams use cooked std::getline semantics. */
 TerminalReadResult readTerminalInput(std::istream &in, std::ostream &out, std::string_view prompt,
                                      std::string_view continuation_prompt);
 
-} // namespace octopus
+} /* namespace octopus */
