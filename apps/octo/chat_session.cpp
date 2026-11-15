@@ -14,6 +14,10 @@ int runChatSession(const octopus::CliOptions &options, octopus::llm::Runtime &ru
     try {
         octopus::tool::Registry registry;
         octopus::tool::loadTools(registry, octopus::tool::resourceRoot(command));
+        /**
+         * This pilot policy allows all calls; the executor invokes the policy
+         * boundary, but permission enforcement is not implemented here.
+         */
         octopus::tool::AllowAllSecurityPolicy policy;
         octopus::tool::Executor executor(registry, policy);
         auto base = octopus::makeConversationRequest(options, {});

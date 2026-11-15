@@ -23,6 +23,12 @@ std::filesystem::path resourceRoot(const std::string &command) {
             start = end + 1;
         }
     }
+    /**
+     * Resolve symlinks before locating resources so invocation through
+     * PATH or a link does not make the current directory determine the
+     * tool catalog. Build trees place share/ beside the executable; an
+     * installed executable under bin/ uses its parent prefix instead.
+     */
     const auto directory = fs::canonical(executable).parent_path();
     const auto build = directory / "share/octopus/tools";
     if (fs::exists(build))

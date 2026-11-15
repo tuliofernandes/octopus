@@ -361,6 +361,14 @@ struct LlamaCppBackend::Impl {
         }
 
         try {
+            /**
+             * Bridge model-neutral history to llama.cpp: assistant tool
+             * calls carry their IDs and JSON arguments, and tool messages
+             * carry the matching tool_call_id. The catalog supplies each
+             * identity, description and JSON parameter schema to Jinja. For
+             * example, call-1 and its tool result remain separate messages
+             * linked by ID; the template chooses the rendered prompt syntax.
+             */
             common_chat_templates_inputs inputs;
             inputs.messages.reserve(request.messages.size());
             for (const auto &message : request.messages) {

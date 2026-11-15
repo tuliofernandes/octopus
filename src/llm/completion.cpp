@@ -127,6 +127,12 @@ std::string StopSafeTextBuffer::append(std::string_view chunk) {
     }
 
     buffer_.append(chunk.data(), chunk.size());
+    /**
+     * A stop marker may straddle token pieces. Retaining at most one
+     * byte fewer than the longest marker prevents its prefix from being
+     * streamed before the next piece can complete it. For a marker
+     * "<end>", for example, "<en" stays buffered until more text arrives.
+     */
     const auto keep_size = max_stop_size_ == 0 ? 0 : max_stop_size_ - 1;
     if (buffer_.size() <= keep_size) {
         return {};
@@ -140,6 +146,11 @@ std::string StopSafeTextBuffer::append(std::string_view chunk) {
 }
 
 std::string StopSafeTextBuffer::flush(std::string_view final_text) {
+    /**
+     * final_text has already been trimmed by the stop or loop detector.
+     * Emit only its not-yet-streamed suffix; text already sent to a sink
+     * cannot be retracted if loop detection trimmed an earlier position.
+     */
     buffer_.clear();
     if (final_text.size() <= emitted_size_) {
         return {};

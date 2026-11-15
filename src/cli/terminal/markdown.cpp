@@ -37,6 +37,12 @@ void appendUtf8(std::string &output, std::uint32_t value) {
     }
 }
 
+/**
+ * md4c reports entities in both text and link attributes. Named entities
+ * use the sorted generated HTML5 table; numeric entities are decoded as
+ * Unicode scalar values. Unknown syntax is retained, while invalid scalar
+ * values become U+FFFD. Terminal controls are removed later by the encoder.
+ */
 std::string decodeEntity(std::string_view entity) {
     if (entity.size() >= 3 && entity.front() == '&' && entity.back() == ';' && entity[1] != '#') {
         const auto name = entity.substr(1, entity.size() - 2);
@@ -85,6 +91,11 @@ std::string decodeEntity(std::string_view entity) {
     return result;
 }
 
+/**
+ * md4c attributes can mix literal text, entities and null characters.
+ * Copy each segment while its parser-owned storage is valid, decoding
+ * entities consistently with the text callback.
+ */
 std::string copyAttribute(const MD_ATTRIBUTE &attribute) {
     if (attribute.text == nullptr || attribute.size == 0) {
         return {};
@@ -116,6 +127,13 @@ std::string copyAttribute(const MD_ATTRIBUTE &attribute) {
 
 bool lineEmpty(const TerminalLine &line) noexcept { return line.runs.empty(); }
 
+/**
+ * md4c streams nested block, span and text events instead of a document
+ * tree. This builder tracks their nesting and accumulates styled runs;
+ * encodeTerminalDocument later encodes those runs. A callback
+ * failure makes parseMarkdown return no document so the caller can use
+ * sanitized Markdown as its fallback.
+ */
 class MarkdownBuilder final {
   public:
     explicit MarkdownBuilder(std::optional<std::size_t> columns, bool utf8)
@@ -504,6 +522,10 @@ class MarkdownBuilder final {
         appendRun(std::string(text.substr(begin)), currentStyle());
     }
 
+    /**
+     * Quoted lines wrap here so each continuation keeps its quote prefix.
+     * Other text and tables use their own rendering or terminal wrapping.
+     */
     void finishLine() {
         const std::string prefix = quotePrefix();
         if (prefix.empty() || !columns_.has_value() || *columns_ <= quote_depth_ + 1 ||
@@ -603,6 +625,12 @@ class MarkdownBuilder final {
         MD_ALIGN alignment;
     };
 
+    /**
+     * Table callbacks collect cells first because alignment requires the
+     * widest display-cell width in each column. Render after the closing
+     * table event, preserving styled runs and list/quote prefixes; compact
+     * rows avoid column padding when the full table is too wide.
+     */
     void finishTable() {
         rendering_table_ = true;
         std::vector<std::size_t> widths;
@@ -623,6 +651,10 @@ class MarkdownBuilder final {
         for (const auto &list : lists_)
             indent += list.marker_width;
         const std::size_t prefix_width = indent + (quote_depth_ ? quote_depth_ + 1 : 0);
+        /**
+         * Avoid padding wide tables beyond the terminal or producing excessive
+         * output when a large table has many rows.
+         */
         const bool compact =
             (columns_.has_value() &&
              (prefix_width >= *columns_ || table_width > *columns_ - prefix_width)) ||
@@ -680,6 +712,10 @@ class MarkdownBuilder final {
     bool failed_ = false;
 };
 
+/**
+ * md4c invokes these callbacks through a C interface; never let a C++
+ * exception cross that boundary. A nonzero result aborts parsing.
+ */
 template <typename Callback> int protectCallback(void *userdata, Callback &&callback) noexcept {
     auto *builder = static_cast<MarkdownBuilder *>(userdata);
     if (builder == nullptr) {

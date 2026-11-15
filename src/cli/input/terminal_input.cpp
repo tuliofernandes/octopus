@@ -40,6 +40,10 @@ class ScopedRawTerminal final {
         }
 
         termios raw = original_;
+        /**
+         * The editor handles Ctrl+C and echo itself; restore the original
+         * terminal mode when the input session leaves scope.
+         */
         raw.c_lflag &= static_cast<tcflag_t>(~(ICANON | ECHO | ISIG));
         raw.c_cc[VMIN] = 1;
         raw.c_cc[VTIME] = 0;
@@ -197,6 +201,10 @@ TerminalReadResult readRawInput(std::ostream &out, std::string_view prompt,
             break;
         }
 
+        /**
+         * Paste is accumulated without redrawing each byte; redraw once after
+         * the closing bracketed-paste sequence has been consumed.
+         */
         if (was_pasting || editor.isPasting()) {
             if (was_pasting && !editor.isPasting()) {
                 rendered = redrawInput(out, prompt, continuation_prompt, editor, rendered);
@@ -217,6 +225,12 @@ TerminalReadResult readRawInput(std::ostream &out, std::string_view prompt,
 TerminalInputEvent TerminalLineEditor::feed(char byte) {
     const unsigned char unsigned_byte = static_cast<unsigned char>(byte);
 
+    /**
+     * Terminal input arrives a byte at a time. Consume escape sequences
+     * before treating bytes as text: CSI and SS3 encode editing keys,
+     * while OSC responses can arrive late after the background query.
+     * An OSC is discarded through BEL or the ESC-backslash terminator.
+     */
     switch (escape_state_) {
     case EscapeState::Escape:
         if (byte == '[') {
@@ -304,6 +318,10 @@ TerminalInputEvent TerminalLineEditor::feed(char byte) {
         break;
     }
 
+    /**
+     * Buffer a complete UTF-8 sequence before insertion so cursor movement
+     * and deletion operate on code-point boundaries.
+     */
     if (!utf8_pending_.empty()) {
         if ((unsigned_byte & 0xC0U) == 0x80U) {
             utf8_pending_.push_back(byte);
@@ -393,6 +411,11 @@ TerminalInputEvent TerminalLineEditor::handleEnter() {
 }
 
 TerminalInputEvent TerminalLineEditor::dispatchControlSequence(char final_byte) {
+    /**
+     * Terminals encode Alt and Ctrl modifiers as 3 and 5 in CSI
+     * parameters. Accept both common modified-arrow forms and the
+     * corresponding deletion forms handled below.
+     */
     const bool modified_word_motion = csi_parameters_.find(";3") != std::string::npos ||
                                       csi_parameters_.find(";5") != std::string::npos ||
                                       csi_parameters_ == "3" || csi_parameters_ == "5";
@@ -620,6 +643,10 @@ TerminalInputMetrics measureTerminalInput(std::string_view prompt,
     TerminalScreenPosition position;
     const std::size_t safe_columns = std::max<std::size_t>(columns, 1);
 
+    /**
+     * A cursor at the right margin wraps only when another cell is written.
+     * redrawInput uses these positions to clear and restore the cursor.
+     */
     const auto advanceCells = [&](std::size_t cells, TerminalScreenPosition &target) {
         while (cells > 0) {
             if (target.column == safe_columns) {

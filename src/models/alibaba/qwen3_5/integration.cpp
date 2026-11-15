@@ -55,6 +55,10 @@ struct MessageCompilation {
 MessageCompilation makeTemplateMessages(const llm::Conversation &conversation) {
     MessageCompilation result;
     result.messages.reserve(conversation.messages.size());
+    /**
+     * The Qwen template receives leading system and developer instructions
+     * as one system message, while retaining their role labels in the text.
+     */
     std::vector<llm::Message> policy_messages;
     bool conversation_started = false;
     bool has_user_query = false;
@@ -96,6 +100,11 @@ llm::CompileResult Qwen35PromptCompiler::compile(const llm::Conversation &conver
         return llm::CompileResult::failure(std::move(compiled_messages.error));
     }
 
+    /**
+     * Forward the structured messages and tool catalog to the model
+     * template engine. The llama.cpp adapter converts them into native
+     * template inputs; the GGUF template determines their prompt syntax.
+     */
     const auto templated =
         template_engine_.render({std::move(compiled_messages.messages), true,
                                  llm::TemplateReasoningPolicy::Disabled, conversation.tools});
@@ -108,12 +117,31 @@ llm::CompileResult Qwen35PromptCompiler::compile(const llm::Conversation &conver
 }
 
 llm::ParseResult Qwen35ResponseParser::parse(const llm::RawCompletion &completion) const {
+    /**
+     * Recognize the Qwen tool-call protocol in generated text. A tag is
+     * considered only at the beginning of the output or a new line;
+     * ordinary text and fenced examples remain assistant text. Once a
+     * call starts, malformed or truncated protocol fails the parse rather
+     * than dispatching a partially generated request. For example:
+     *   <tool_call>
+     *   <function=misc.hello_world>
+     *   </function>
+     *   </tool_call>
+     * This becomes a structured call with identity "misc.hello_world"
+     * and arguments {}. chat::Runtime assigns its ID before execution.
+     */
     const std::string open = "<tool_call>\n<function=";
     const std::string close = "</function>\n</tool_call>";
     const auto start = completion.text.find("<tool_call>");
     if (start == std::string::npos || (start != 0 && completion.text[start - 1] != '\n')) {
         return llm::ParseResult::success({completion.text, {}});
     }
+    /**
+     * A protocol-looking example inside a fenced code block is assistant
+     * text, not a tool request. This check counts triple-backtick sequences
+     * before the first tag; it is not a complete Markdown fence parser.
+     * Only the first <tool_call> occurrence is considered as the start.
+     */
     std::size_t fence_count = 0;
     for (std::size_t at = 0;
          (at = completion.text.find("```", at)) != std::string::npos && at < start; at += 3)
@@ -144,6 +172,11 @@ llm::ParseResult Qwen35ResponseParser::parse(const llm::RawCompletion &completio
         if (name.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789_.") != std::string::npos) {
             return llm::ParseResult::failure("invalid tool name");
         }
+        /**
+         * Parameter bodies are retained as strings in a JSON object; this
+         * parser checks protocol structure and duplicates, while the
+         * selected tool validator decides whether the arguments are valid.
+         */
         auto arguments = nlohmann::json::object();
         cursor = name_end + 2;
         const std::string parameter_open = "<parameter=";
@@ -164,6 +197,10 @@ llm::ParseResult Qwen35ResponseParser::parse(const llm::RawCompletion &completio
         }
         if (completion.text.compare(cursor, close.size(), close) != 0)
             return llm::ParseResult::failure("incomplete tool call");
+        /**
+         * chat::Runtime assigns the call ID after parsing and correlates it
+         * with the eventual tool result in conversation history.
+         */
         response.tool_calls.push_back({{}, name, std::move(arguments)});
         cursor += close.size();
         while (cursor < completion.text.size() &&

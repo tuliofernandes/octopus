@@ -28,6 +28,10 @@ void loadTools(Registry &registry, const std::filesystem::path &root) {
         void *raw = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
         if (!raw)
             throw std::runtime_error("cannot load tool " + path.string() + ": " + dlerror());
+        /**
+         * Both registered callbacks retain the library: their function pointers
+         * must remain valid until the registry releases its entries.
+         */
         auto library = std::shared_ptr<void>(raw, [](void *p) { dlclose(p); });
         dlerror();
         auto entry = reinterpret_cast<ToolModuleEntry>(dlsym(raw, "octopusToolModule"));

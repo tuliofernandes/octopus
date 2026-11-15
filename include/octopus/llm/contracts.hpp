@@ -71,6 +71,10 @@ class ChatTemplateEngine {
     virtual TemplateRenderResult render(const ChatTemplateRequest &request) const = 0;
 };
 
+/**
+ * Borrows compiler and parser; both must outlive this integration and any
+ * runtime that uses it. The owning model integration keeps them stable.
+ */
 class ModelIntegration final {
   public:
     ModelIntegration(ModelCapabilities capabilities, const PromptCompiler &compiler,

@@ -37,6 +37,10 @@ Result Executor::execute(const Call &call, const core::CancellationToken *cancel
         return {call.id, Status::UnknownTool, "unknown tool"};
     if (cancellation && cancellation->isCancellationRequested())
         return {call.id, Status::Cancelled, "cancelled"};
+    /**
+     * Manifests describe parameters, but each module validates its own
+     * arguments. Authorization follows validation and precedes execution.
+     */
     try {
         auto diagnostic = entry->validator(call.arguments);
         if (!diagnostic.empty())

@@ -22,6 +22,10 @@ class StopDetector {
     std::string text_;
 };
 
+/**
+ * Holds a suffix that could still become a stop marker across token pieces.
+ * The backend flushes against the final, stop-trimmed text.
+ */
 class StopSafeTextBuffer {
   public:
     explicit StopSafeTextBuffer(std::vector<std::string> stop_strings);

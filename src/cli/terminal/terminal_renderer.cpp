@@ -164,6 +164,10 @@ unsigned nearestXtermColorIndex(TerminalRgb color, std::optional<unsigned> exclu
     const double background_luminance = contrast_background.has_value()
                                             ? relativeLuminance(*contrast_background)
                                             : target_luminance;
+    /**
+     * Preserve the intended lightening or darkening when quantizing to the
+     * xterm palette, so the response background remains distinguishable.
+     */
     const bool enforce_direction =
         contrast_background.has_value() && target_luminance != background_luminance;
     const bool target_is_lighter = target_luminance > background_luminance;
@@ -403,6 +407,10 @@ std::optional<TerminalRgb> queryTerminalBackground(int input_fd, int output_fd) 
     std::optional<TerminalRgb> background;
     std::array<char, kMaximumTerminalResponseBytes> response{};
     std::size_t response_size = 0;
+    /**
+     * OSC 11 is optional; bound the wait so an unresponsive terminal does not
+     * block chat startup. The original terminal mode is restored below.
+     */
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds{100};
     while (!write_failed && response_size < response.size()) {
         const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -463,6 +471,12 @@ TerminalRgb deriveResponseBackground(TerminalRgb background) noexcept {
     return {adjust(background.red), adjust(background.green), adjust(background.blue)};
 }
 
+/**
+ * Model output and decoded Markdown entities must not inject terminal
+ * control sequences. Preserve tabs and line breaks, normalize CRLF and
+ * CR to LF, remove controls, and replace malformed UTF-8 one byte at a
+ * time. The encoder applies this again after entity decoding.
+ */
 std::string sanitizeTerminalText(std::string_view text) {
     std::string output;
     output.reserve(text.size());

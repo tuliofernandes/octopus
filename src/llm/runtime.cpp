@@ -38,6 +38,10 @@ CompletionResult Runtime::completeImpl(const CompletionRequest &request, Complet
                                                                    : generated.error());
     }
 
+    /**
+     * Cancelled output may contain an incomplete model protocol. Return it
+     * without parsing so a partial tool call cannot become an executable call.
+     */
     const auto &raw = generated.value();
     if (raw.finish_reason == FinishReason::Cancelled) {
         return rawResult(raw);

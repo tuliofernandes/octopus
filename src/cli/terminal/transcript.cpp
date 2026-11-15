@@ -69,6 +69,10 @@ void TranscriptRenderer::stopSpinner() noexcept {
         std::lock_guard<std::mutex> lock(output_mutex_);
         spinner_stop_requested_ = true;
     }
+    /**
+     * Join without holding output_mutex_: the spinner must reacquire it to
+     * observe the stop request and exit.
+     */
     spinner_wakeup_.notify_all();
     if (spinner_thread_.joinable()) {
         spinner_thread_.join();
@@ -81,6 +85,10 @@ void TranscriptRenderer::clearActivity() noexcept { stopSpinner(); }
 
 void TranscriptRenderer::renderAssistant(std::string_view markdown) {
     clearActivity();
+    /**
+     * Sanitize before parsing and also use that text as the fallback for
+     * redirected output or a Markdown conversion failure.
+     */
     const std::string sanitized = sanitizeTerminalText(markdown);
     std::string encoded;
     if (capabilities_.interactive_session && capabilities_.sgr_attributes) {

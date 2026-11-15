@@ -91,6 +91,10 @@ std::size_t nextCodePointBoundary(std::string_view text, std::size_t offset) noe
     return std::min(text.size(), offset + (decoded.valid ? decoded.bytes : 1));
 }
 
+/**
+ * This is a compact width approximation shared by input layout and Markdown.
+ * It counts code points, not grapheme clusters or terminal-specific widths.
+ */
 std::size_t terminalCellWidth(std::uint32_t code_point) noexcept {
     if (code_point == 0 || code_point < 0x20U || (code_point >= 0x7FU && code_point <= 0x9FU) ||
         isCombining(code_point)) {

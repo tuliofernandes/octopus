@@ -60,6 +60,10 @@ void reportBackendError(const llm::CompletionResult &completion, std::ostream &e
     err << (completion.error().empty() ? "LLM backend error" : completion.error()) << '\n';
 }
 
+/**
+ * Intermediate chunks can contain model tool protocol. The CLI renders only
+ * the completed, parsed assistant response after the runtime finishes.
+ */
 class ChatOutputSink final : public llm::CompletionSink {
   public:
     void onText(const llm::CompletionChunk &) override {}
@@ -117,6 +121,10 @@ ChatRunResult runCliChat(const CliOptions &options, llm::Runtime &runtime, std::
             continue;
         }
 
+        /**
+         * The plain LLM path uses this conversation; tool_runtime owns its own
+         * history, including tool calls and their correlated results.
+         */
         conversation.messages.push_back({llm::Role::User, input.text});
         ChatOutputSink sink;
         llm::CompletionRequest request = makeConversationRequest(options, conversation);
