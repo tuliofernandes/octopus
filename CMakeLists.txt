@@ -41,7 +41,9 @@ set(OCTOPUS_FORMAT_SOURCES
         src/cli/cli.cpp
         src/cli/input/input_editor.cpp
         src/cli/input/terminal_input.cpp
+        src/cli/terminal/markdown.cpp
         src/cli/terminal/terminal_renderer.cpp
+        src/cli/terminal/transcript.cpp
         src/cli/terminal/text.cpp
         src/cli/modes/ask.cpp
         src/cli/modes/chat.cpp
@@ -133,7 +135,9 @@ add_library(octopus_cli_modes STATIC
         src/cli/modes/chat.cpp
         src/cli/input/input_editor.cpp
         src/cli/input/terminal_input.cpp
+        src/cli/terminal/markdown.cpp
         src/cli/terminal/terminal_renderer.cpp
+        src/cli/terminal/transcript.cpp
         src/cli/terminal/text.cpp)
 target_include_directories(octopus_cli_modes PUBLIC include PRIVATE src)
 target_compile_features(octopus_cli_modes PUBLIC cxx_std_17)

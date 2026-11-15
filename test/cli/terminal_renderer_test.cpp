@@ -481,3 +481,60 @@ TEST_CASE("wide tables retain their rows in narrow terminals",
   const auto plain = octopus::encodeTerminalDocument(*document, {false, false});
   CHECK(plain == "| Long heading | Amount |\n|---|---|\n| Dog | 10 |");
 }
+
+TEST_CASE("tables retain list nesting and quote prefixes",
+          "[terminal-renderer]") {
+  const auto document = octopus::parseMarkdown(
+      "- item\n\n  | a | b |\n  | --- | --- |\n  | x | y |\n");
+  REQUIRE(document.has_value());
+  const auto plain = octopus::encodeTerminalDocument(*document, {false, false});
+  CHECK(plain.find("  | a | b |\n  |---|---|\n  | x | y |") !=
+        std::string::npos);
+  const auto quote = octopus::parseMarkdown(
+      "> | abc | x |\n> | --- | --- |\n> | d | e |\n", 12);
+  REQUIRE(quote.has_value());
+  const auto quoted = octopus::encodeTerminalDocument(*quote, {false, false});
+  CHECK(quoted.find("> | d | e |") != std::string::npos);
+}
+
+TEST_CASE("excessive table expansion falls back to raw Markdown",
+          "[terminal-renderer]") {
+  std::string markdown;
+  for (int i = 0; i < 100; ++i) markdown += "| h ";
+  markdown += "|\n";
+  for (int i = 0; i < 100; ++i) markdown += "| --- ";
+  markdown += "|\n";
+  for (int i = 0; i < 200; ++i) {
+    for (int j = 0; j < 100; ++j) markdown += "| x ";
+    markdown += "|\n";
+  }
+  CHECK_FALSE(octopus::parseMarkdown(markdown).has_value());
+  RecordingBuffer buffer;
+  std::ostream out(&buffer);
+  octopus::TranscriptRenderer renderer(out, enhancedCapabilities());
+  renderer.renderAssistant(markdown);
+  CHECK(buffer.text.find(markdown.substr(0, 100)) != std::string::npos);
+}
+
+TEST_CASE("tables support escaped delimiters, empty cells and multiple blocks",
+          "[terminal-renderer]") {
+  const auto document = octopus::parseMarkdown(
+      "| Left | Mid | Right |\n| :--- | :---: | ---: |\n"
+      "| a\\|b | | 9 |\n\nText\n\n| Wide |\n| --- |\n| 猫 |\n");
+  REQUIRE(document.has_value());
+  const auto plain = octopus::encodeTerminalDocument(*document, {false, false});
+  CHECK(plain.find("| a|b  |     |     9 |") != std::string::npos);
+  CHECK(plain.find("Text\n\n| Wide |\n|------|\n| 猫   |") !=
+        std::string::npos);
+}
+
+TEST_CASE("named entities cannot inject terminal control characters",
+          "[terminal-renderer]") {
+  const auto document =
+      octopus::parseMarkdown("&NewLine;&Tab;&#27; safe &bogus;");
+  REQUIRE(document.has_value());
+  const auto encoded =
+      octopus::encodeTerminalDocument(*document, {true, false});
+  CHECK(encoded.find('\x1b') == std::string::npos);
+  CHECK(encoded.find("safe &bogus;") != std::string::npos);
+}

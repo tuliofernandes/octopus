@@ -150,9 +150,12 @@ fenced code, links, block quotes, line breaks, autolinks, and strikethrough. It
 uses native
 terminal wrapping; there is no response gutter, manual response wrapping,
 alternate screen, cursor hiding, or OSC hyperlink. Tables are aligned when they
-fit the terminal; wider tables retain their rows and use native wrapping. Links
-are underlined, and named HTML entities are decoded. Raw HTML remains visible
-literal text. Cancellation clears the
+fit the terminal; wider tables retain their rows and use native wrapping. A
+table exceeding 16,384 cells falls back to sanitized raw Markdown. Links are
+underlined, and named HTML entities are decoded. Raw HTML remains visible
+literal text. The entity table can be verified with
+`python3 scripts/generate_named_entities.py --check`; the generator documents
+the source and Python version. Cancellation clears the
 spinner and does not publish a partial answer.
 
 Enhanced rendering requires TTY stdin and stdout, a non-empty `TERM` other than
