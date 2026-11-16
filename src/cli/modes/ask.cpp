@@ -23,6 +23,11 @@ std::string systemPrompt() {
 
 constexpr const char *kDeveloperPrompt =
     "Answer the user's request directly. If you are unsure, say so. "
+    "For every request, assess whether any available tool is needed to fulfill it. "
+    "Use tools when you need to retrieve information, verify facts about the environment, "
+    "or carry out requested actions; the user does not need to mention tools explicitly. "
+    "When you can answer adequately without tools, respond directly. "
+    "Make this assessment internally without narrating it. "
     "For facts about this computer, inspect the local system with available tools. "
     "Use tool results as evidence. If a command fails, revise your approach for the local "
     "operating system or explain the limitation instead of repeating the same failed call. "

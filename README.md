@@ -280,7 +280,10 @@ activity messages are emitted.
 
 CLI requests identify the local operating system through POSIX `uname` when
 available and state that tools run on this computer. Shared model-neutral
-instructions ask the model to use local evidence, revise its approach after
+instructions ask the model to assess tool needs for every request without
+requiring users to name tools, answer directly when tools are unnecessary,
+and keep that assessment internal. They also ask it to use local evidence and
+revise its approach after
 command errors and answer once enough information is available. These are
 model instructions; the existing eight-round runtime limit remains enforced.
 The catalog explicitly requires `args: []` for programs without arguments.
