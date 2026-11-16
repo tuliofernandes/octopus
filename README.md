@@ -287,6 +287,14 @@ revise its approach after
 command errors and answer once enough information is available. These are
 model instructions; the existing eight-round runtime limit remains enforced.
 The catalog explicitly requires `args: []` for programs without arguments.
+Parameter descriptions and Draft-07 `examples` demonstrate an executable with
+separate arguments and an explicit shell pipeline. The developer prompt also
+gives direct/pipeline formatting examples and asks the model to inspect command
+exit codes and error output even when tool status is `success`. It prefers
+local files/interfaces for machine facts, distinguishes a local interface IP
+from a public-IP lookup, and asks for concise answers with a compact default
+process table. These instructions guide the model; they do not split arguments,
+insert a shell, rewrite calls or guarantee that every generation follows them.
 
 `AllowAllSecurityPolicy` deliberately permits valid calls in this controlled
 cycle, as authorized in the implementation plan. This is a temporary exception

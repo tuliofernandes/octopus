@@ -1,1 +1,50 @@
-{"schema_version":1,"category":"os","name":"exec","description":"Runs a program with literal arguments, without an implicit shell. Inherits cwd and environment, receives EOF on stdin, and returns bounded stdout/stderr with exit status. Use /bin/sh -c explicitly for shell syntax. Both program and args are required. Always pass args as a JSON array; use an empty array [] when the program takes no arguments.","parameters":{"$schema":"http://json-schema.org/draft-07/schema#","type":"object","properties":{"program":{"type":"string","minLength":1},"args":{"type":"array","items":{"type":"string"}}},"required":["program","args"],"additionalProperties":false},"permissions":[]}
+{
+  "schema_version": 1,
+  "category": "os",
+  "name": "exec",
+  "description": "Runs one executable with literal arguments, without an implicit shell. Inherits cwd and environment, receives EOF on stdin, and returns bounded stdout/stderr. Both program and args are required. Put only the executable in program and one argument per args element. For pipes or redirection, explicitly run /bin/sh with args [\"-c\", \"the shell command\"]. A tool status of success means execution was observed: check output.exit_code, output.signal and output.stderr. Exit code 0 means the program succeeded; nonzero or signal termination requires reviewing the diagnostic before correcting the call.",
+  "parameters": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+      "program": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Executable name or path only. Put flags and arguments in args. A path itself may contain spaces. Use an explicit shell for pipes or redirection."
+      },
+      "args": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Required array of literal arguments, one element per argument, for example [\"aux\", \"--sort=-%mem\"]. Use [] for no arguments. For /bin/sh use [\"-c\", \"complete shell command\"]."
+      }
+    },
+    "required": [
+      "program",
+      "args"
+    ],
+    "additionalProperties": false,
+    "examples": [
+      {
+        "program": "/usr/bin/id",
+        "args": []
+      },
+      {
+        "program": "ps",
+        "args": [
+          "aux",
+          "--sort=-%mem"
+        ]
+      },
+      {
+        "program": "/bin/sh",
+        "args": [
+          "-c",
+          "ps aux --sort=-%mem | head -n 11"
+        ]
+      }
+    ]
+  },
+  "permissions": []
+}
