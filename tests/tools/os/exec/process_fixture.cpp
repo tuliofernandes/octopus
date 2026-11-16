@@ -1,0 +1,51 @@
+#include <csignal>
+#include <cstdlib>
+#include <iostream>
+#include <string>
+#include <unistd.h>
+
+int main(int argc, char **argv) {
+    const std::string mode = argc > 1 ? argv[1] : "";
+    if (mode == "argv") {
+        for (int i = 2; i < argc; ++i)
+            std::cout << '[' << argv[i] << ']';
+        std::cerr << "diagnostic";
+        return 2;
+    }
+    if (mode == "stdin") {
+        char c;
+        return std::cin.get(c) ? 1 : 0;
+    }
+    if (mode == "signal") {
+        raise(SIGTERM);
+        return 1;
+    }
+    if (mode == "volume") {
+        std::cerr << std::string(3 * 1024 * 1024, 'e');
+        std::cout << std::string(3 * 1024 * 1024, 'o');
+    }
+    if (mode == "bytes")
+        std::cout << std::string(std::stoi(argv[2]), 'x');
+    if (mode == "lines")
+        for (int i = 0; i < std::stoi(argv[2]); ++i)
+            std::cout << "x\n";
+    if (mode == "invalid") {
+        const char bytes[] = {'a', char(0xff), char(0xe2), char(0x82)};
+        std::cout.write(bytes, sizeof(bytes));
+    }
+    if (mode == "wait") {
+        std::cout << getpid() << std::endl;
+        for (;;)
+            pause();
+    }
+    if (mode == "context") {
+        char cwd[4096];
+        if (!getcwd(cwd, sizeof(cwd)))
+            return 1;
+        std::cout << cwd;
+        const char *value = getenv("OCTOPUS_EXEC_TEST");
+        if (value)
+            std::cerr << value;
+    }
+    return 0;
+}

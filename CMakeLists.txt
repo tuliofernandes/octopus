@@ -165,7 +165,7 @@ target_link_libraries(octopus_inference_llama_cpp PUBLIC octopus_llm PRIVATE lla
 target_compile_options(octopus_inference_llama_cpp PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 add_executable(octo apps/octo/main.cpp apps/octo/chat_session.cpp)
-add_dependencies(octo octopus_tool_hello_world)
+add_dependencies(octo octopus_tool_hello_world octopus_tool_os_exec)
 target_include_directories(octo PRIVATE include src)
 target_compile_features(octo PUBLIC cxx_std_17)
 target_link_libraries(octo PRIVATE
@@ -183,3 +183,13 @@ include(CTest)
 if(Catch2_FOUND AND BUILD_TESTING)
         add_subdirectory(test)
 endif()
+
+add_library(octopus_tool_os_exec MODULE tools/os/exec/main.cpp tools/os/exec/process_posix.cpp)
+target_include_directories(octopus_tool_os_exec PRIVATE include)
+target_compile_features(octopus_tool_os_exec PRIVATE cxx_std_17)
+target_compile_options(octopus_tool_os_exec PRIVATE -Wall -Wextra -Wpedantic -Werror)
+target_link_libraries(octopus_tool_os_exec PRIVATE nlohmann_json::nlohmann_json)
+set_target_properties(octopus_tool_os_exec PROPERTIES PREFIX "" OUTPUT_NAME "tool" LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/share/octopus/tools/os/exec")
+install(TARGETS octopus_tool_os_exec LIBRARY DESTINATION share/octopus/tools/os/exec)
+add_dependencies(octopus_tool_tests octopus_tool_os_exec)
+add_dependencies(octopus_tool_call_probe octopus_tool_os_exec)
