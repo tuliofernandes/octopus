@@ -1,5 +1,6 @@
 #include "process.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cerrno>
 #include <csignal>

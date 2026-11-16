@@ -209,39 +209,105 @@ Local AMD HIP and Vulkan development presets are available in
 `CMakePresets.json`. They are build-time configurations, not user-facing
 runtime backend selection.
 
-## Tool foundation
+## Tools
 
-The independent `octopus_tool` library loads JSON manifests from an explicit
-resource root, discovers tools in category/name directories and loads their
-`tool` shared modules into the Octopus process. Each module exports the
-versioned `octopusToolModule` entry point declared in `octopus/tool/module.hpp`;
-it supplies the tool’s validator and handler. Modules must use a compatible C++
-ABI and nlohmann_json version, and are trusted native code: loading and running
-them is not sandboxed. Identifiers use
-lowercase letters, digits and underscores and start with a letter. Manifests declare object parameter schemas for the model; each registry entry
-must supply a validator that enforces its tool’s arguments. The loader checks
-the schema root, not full JSON Schema correctness, so authors must keep the
-manifest and validator consistent. `misc.hello_world` accepts only an empty
-object. Its implementation and manifest live in `tools/misc/hello_world/`,
-with tests in `tests/tools/misc/hello_world/`. CMake builds each module beside
-its copied manifest and installs both under `share/octopus/tools`; new modules
-need a corresponding build and install target. The executor requires a
-security policy; `AllowAllSecurityPolicy` permits every valid invocation and
-provides no isolation or permission enforcement. Interactive chat advertises registered tools and executes calls serially,
-then returns correlated results to the model. One-shot `ask` does not use tools.
-A turn is limited to eight tool rounds. Build resources are copied to `build/share/octopus/tools`;
-installation places them under `share/octopus/tools`. The caller supplies the
-resource root explicitly. Run `cmake --build build --target octopus_tool_tests`
-and `./build/test/octopus_tool_tests` for the model-free subsystem tests.
+The independent `octopus_tool` library discovers version-1 JSON manifests under
+category/name directories and loads adjacent native `tool` modules. Modules use
+ABI v2 (`octopusToolModule`), a compatible C++ ABI and nlohmann_json version;
+ABI v1 is rejected and all distributed modules must be rebuilt together.
+Modules are trusted code loaded into the Octopus process.
 
-To verify Qwen tool execution against a model, build the opt-in probe and pass
-the model and resource paths explicitly:
+Manifest envelopes reject unknown fields. Parameter schemas use Draft-07,
+validated against the embedded metaschema and compiled through Conan
+`json-schema-validator/2.4.0`, retaining `nlohmann_json/3.11.3`. Missing `$schema`
+means Draft-07; other declared dialects and unresolved external references are
+rejected. Internal references work. `format` is annotation-only and defaults
+are not applied. Registry dispatch validates the schema, then module semantics,
+then consults the mandatory security policy before invoking the handler.
+
+`misc.hello_world` accepts an empty object and retains its greeting/random-number
+text. `os.exec` accepts a required program and an explicit array of literal
+arguments:
+
+```json
+{"program":"/usr/bin/printf","args":["%s\n","a b; $HOME"]}
+```
+
+There is no implicit shell, argument splitting or expansion. To use shell
+syntax, request `/bin/sh` with `args: ["-c", "..."]` explicitly. Embedded NUL is
+invalid; empty arguments are valid. `posix_spawnp` searches PATH for bare names;
+paths resolve against inherited cwd. The command inherits an environment
+snapshot and receives EOF from `/dev/null` on stdin. Stdout/stderr use separate
+pipes drained together with `poll`; neither stream is interactive.
+
+Handlers return JSON output and an operational status. Chat records the result
+once as `{"status":"success","output":...}` with the correlated tool-call ID.
+For `os.exec`, output is an object containing nullable `exit_code` and `signal`,
+`stdout`, `stderr`, `stdout_truncated`, `stderr_truncated` and
+`capture_incomplete`. Nonzero exit and signal termination are successfully
+observed executions, rather than tool failures. Spawn/I/O errors are failures;
+cancellation returns `cancelled` with partial output after process cleanup.
+
+Retention is bounded during capture to 8,192 bytes and 200 lines per stream.
+A final unterminated line counts as a line. Exact limits alone do not imply
+truncation; extra observed bytes do. Excess output is drained and discarded
+while the child runs. Invalid UTF-8 becomes U+FFFD, fragments at a truncation
+boundary are dropped, and normalized text also respects the byte ceiling.
+After the direct child exits, final draining has a bounded budget; a descendant
+keeping a writer open sets `capture_incomplete` rather than blocking forever.
+Closing those readers can cause SIGPIPE in later descendant writes.
+
+The child owns a separate process group with an empty signal mask and default
+SIGINT/SIGTERM/SIGPIPE dispositions. Cancellation sends SIGKILL to the owned
+group and reaps the direct child. Other exit/error paths retain cleanup
+responsibility through RAII. Descendants escaping the group are not guaranteed
+to stop. No timeout, cwd/env overrides, stdin interaction, PTY, job management,
+sandbox or permission enforcement is implemented. Linux is verified; BSD/macOS
+support is not claimed. Pipe creation uses POSIX `pipe` plus `fcntl`, with
+serial launches; atomic descriptor protection for concurrent launches is not
+promised. The descriptor wrapper follows Linux close/EINTR behavior.
+
+Every dispatched handler receives executor-measured, optional steady-clock
+duration, including handler failures and cancellation. Rejections before
+handler entry have no duration. Optional synchronous activity observers receive
+correlated start/end events; their exceptions and label errors cannot change
+operational results. The CLI adapts labels and completion summaries to the
+existing transient spinner, showing measured milliseconds, sanitizing controls
+and clipping UTF-8 by terminal cells. Activity is suppressed in redirected
+output and cleared on completion/error/cancellation. Labels, summaries and
+durations are not added to model history. No output previews or permanent
+activity messages are emitted.
+
+`AllowAllSecurityPolicy` deliberately permits valid calls in this controlled
+cycle, as authorized in the implementation plan. This is a temporary exception
+to the explicit-approval product principle; approval and isolation remain
+future security work. Interactive chat executes calls serially with at most
+eight tool rounds per turn. One-shot `ask` does not use tools.
+
+Sources and deterministic fixtures live under `tools/<category>/<name>/` and
+`tests/tools/<category>/<name>/`. CMake builds/installs each module next to its
+manifest under `share/octopus/tools`. The CLI resolves resources relative to
+the executable, independently of cwd. Tests require no model or llama linkage:
+
+```bash
+cmake --build build --target octopus_tool_tests
+./build/test/octopus_tool_tests
+```
+
+The Qwen XML parser receives the advertised catalog, preserving declared string
+parameters and JSON-decoding explicitly non-string types. This keeps `args`
+an array when using the real GGUF template; schema enforcement remains in the
+executor. Other parsers can retain their existing context-free implementation.
+
+Opt-in real-model probes verify executor output in continuation prompts:
 
 ```bash
 cmake --build build --target octopus_tool_call_probe
 ./build/test/octopus_tool_call_probe ./models/Qwen3.5-4B-Q4_K_M.gguf ./build/share/octopus/tools
+./build/test/octopus_tool_call_probe ./models/Qwen3.5-4B-Q4_K_M.gguf ./build/share/octopus/tools os.exec
 ```
 
-The probe verifies two distinct calls, their results in later model prompts and
-answers, and a normal conversation turn. Use the corresponding build directory
-for an AMD HIP build.
+The default probe checks two hello calls and a normal turn. The `os.exec` mode
+requests `/usr/bin/printf`, checks actual structured stdout/exit status and its
+presence in the continuation prompt, then checks the final answer. Use the
+corresponding build directory for the local AMD HIP backend.

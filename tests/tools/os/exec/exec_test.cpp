@@ -1,8 +1,11 @@
 #include "octopus/tool/tool.hpp"
 
 #include <catch2/catch_test_macros.hpp>
+#include <cerrno>
 #include <csignal>
+#include <cstdlib>
 #include <fstream>
+#include <stdexcept>
 #include <sys/resource.h>
 #include <sys/wait.h>
 #include <thread>
