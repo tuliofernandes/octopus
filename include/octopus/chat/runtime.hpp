@@ -3,8 +3,12 @@
 #include "octopus/tool/tool.hpp"
 
 #include <cstddef>
+#include <functional>
 
 namespace octopus::chat {
+
+/* Optional synchronous diagnostic callback; it receives the history payload. */
+using ToolTrace = std::function<void(const tool::Call &, const nlohmann::json &)>;
 
 class Runtime final {
   public:
@@ -15,7 +19,8 @@ class Runtime final {
 
     llm::CompletionResult turn(const std::string &text, const core::CancellationToken *cancellation,
                                llm::CompletionSink *sink = nullptr,
-                               tool::ActivityObserver *observer = nullptr);
+                               tool::ActivityObserver *observer = nullptr,
+                               const ToolTrace &trace = {});
 
     const llm::Conversation &history() const { return history_; }
 

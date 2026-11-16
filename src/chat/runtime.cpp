@@ -29,7 +29,8 @@ const char *statusName(tool::Status status) {
 
 llm::CompletionResult Runtime::turn(const std::string &text,
                                     const core::CancellationToken *cancellation,
-                                    llm::CompletionSink *sink, tool::ActivityObserver *observer) {
+                                    llm::CompletionSink *sink, tool::ActivityObserver *observer,
+                                    const ToolTrace &trace) {
     history_.messages.push_back({llm::Role::User, text});
     bool accepted = false;
     std::size_t rounds = 0;
@@ -124,6 +125,12 @@ llm::CompletionResult Runtime::turn(const std::string &text,
              */
             nlohmann::json payload = {{"status", statusName(result.status)},
                                       {"output", result.output}};
+            if (trace) {
+                try {
+                    trace(call, payload);
+                } catch (...) {
+                }
+            }
             history_.messages.push_back({llm::Role::Tool, payload.dump(), {}, call.id});
         }
 

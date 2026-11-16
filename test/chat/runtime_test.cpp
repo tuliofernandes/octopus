@@ -2,6 +2,7 @@
 #include "octopus/cli/chat.hpp"
 
 #include <catch2/catch_test_macros.hpp>
+#include <cstdlib>
 #include <sstream>
 
 namespace {
@@ -374,5 +375,73 @@ TEST_CASE("CLI presents generic tool activity summaries without adding them to h
     for (const auto &message : chat.history().messages) {
         CHECK(message.content.find("Running example") == std::string::npos);
         CHECK(message.content.find("Exit 2") == std::string::npos);
+    }
+}
+
+TEST_CASE("CLI opt-in tool debug traces rejected and executed calls without changing history") {
+    const char *previous = std::getenv("OCTOPUS_DEBUG_TOOLS");
+
+    struct Restore {
+        std::optional<std::string> value;
+
+        ~Restore() {
+            if (value)
+                setenv("OCTOPUS_DEBUG_TOOLS", value->c_str(), 1);
+            else
+                unsetenv("OCTOPUS_DEBUG_TOOLS");
+        }
+    } restore{previous ? std::optional<std::string>(previous) : std::nullopt};
+
+    struct Calls : octopus::llm::AssistantResponseParser {
+        octopus::llm::ParseResult parse(const octopus::llm::RawCompletion &raw) const override {
+            if (raw.text == "call")
+                return octopus::llm::ParseResult::success(
+                    {"",
+                     {{"", "misc.hello", {{"extra", true}}},
+                      {"", "misc.hello", nlohmann::json::object()}}});
+            return octopus::llm::ParseResult::success({raw.text});
+        }
+    } parser;
+
+    for (bool enabled : {false, true}) {
+        REQUIRE(setenv("OCTOPUS_DEBUG_TOOLS", enabled ? "1" : "0", 1) == 0);
+        Compiler compiler;
+        Backend backend;
+        octopus::llm::ModelIntegration model({true, false, false}, compiler, parser);
+        octopus::llm::Runtime llm(model, backend);
+        octopus::tool::Registry registry;
+        REQUIRE(registry.add(
+            {"misc", "hello", "hello", {{"type", "object"}, {"additionalProperties", false}}, {}},
+            [](const auto &, const auto *) {
+                return octopus::tool::Outcome{
+                    octopus::tool::Status::Success,
+                    nlohmann::json{{"exit_code", 2}, {"stderr", "bad option\n"}}};
+            },
+            validateEmpty));
+        octopus::tool::AllowAllSecurityPolicy policy;
+        octopus::tool::Executor executor(registry, policy);
+        octopus::chat::Runtime chat(llm, registry, executor, {});
+        std::istringstream input("call\n");
+        std::ostringstream output, errors;
+        CHECK(octopus::runCliChat({}, llm, input, output, errors, &chat).exit_code == 0);
+        CHECK(output.str().find("bad option") == std::string::npos);
+        if (!enabled) {
+            CHECK(errors.str().empty());
+            continue;
+        }
+        std::istringstream records(errors.str());
+        std::string line;
+        REQUIRE(static_cast<bool>(std::getline(records, line)));
+        auto rejected = nlohmann::json::parse(line);
+        CHECK(rejected.at("status") == "invalid_arguments");
+        CHECK(rejected.at("arguments").at("extra") == true);
+        REQUIRE(static_cast<bool>(std::getline(records, line)));
+        auto executed = nlohmann::json::parse(line);
+        CHECK(executed.at("tool") == "misc.hello");
+        CHECK(executed.at("call_id") != rejected.at("call_id"));
+        CHECK(executed.at("output").at("exit_code") == 2);
+        CHECK(executed.at("output").at("stderr") == "bad option\n");
+        CHECK_FALSE(static_cast<bool>(std::getline(records, line)));
+        CHECK(chat.history().messages.size() == 5);
     }
 }

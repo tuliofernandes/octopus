@@ -6,6 +6,7 @@
 
 #include <chrono>
 #include <csignal>
+#include <cstdlib>
 #include <iostream>
 #include <istream>
 #include <ostream>
@@ -119,6 +120,19 @@ ChatRunResult runCliChat(const CliOptions &options, llm::Runtime &runtime, std::
 ChatRunResult runCliChat(const CliOptions &options, llm::Runtime &runtime, std::istream &in,
                          std::ostream &out, std::ostream &err, ChatPresentation presentation,
                          chat::Runtime *tool_runtime) {
+    const char *debug_setting = std::getenv("OCTOPUS_DEBUG_TOOLS");
+    const bool debug_tools = debug_setting && std::string(debug_setting) == "1";
+    chat::ToolTrace trace;
+    if (debug_tools) {
+        trace = [&err](const tool::Call &call, const nlohmann::json &payload) {
+            auto record = payload;
+            record["call_id"] = call.id;
+            record["tool"] = call.identity;
+            record["arguments"] = call.arguments;
+            err << record.dump() << '\n';
+            err.flush();
+        };
+    }
     ChatRunResult result;
     llm::Conversation conversation;
     const bool interactive_session = presentation.capabilities.interactive_session;
@@ -157,11 +171,13 @@ ChatRunResult runCliChat(const CliOptions &options, llm::Runtime &runtime, std::
         llm::CompletionRequest request = makeConversationRequest(options, conversation);
         ScopedGenerationCancelHandler cancel_handler;
         request.cancellation = &cancel_handler.token();
-        renderer.startSpinner();
+        if (!debug_tools)
+            renderer.startSpinner();
         ToolActivity activity(renderer);
-        auto completion =
-            tool_runtime ? tool_runtime->turn(input.text, request.cancellation, &sink, &activity)
-                         : runtime.completeStreaming(request, sink);
+        auto completion = tool_runtime
+                              ? tool_runtime->turn(input.text, request.cancellation, &sink,
+                                                   debug_tools ? nullptr : &activity, trace)
+                              : runtime.completeStreaming(request, sink);
 
         if (completionFailed(completion)) {
             result.exit_code = 1;

@@ -328,3 +328,22 @@ ligado?” with the CLI token budget, prints calls/results even on failure, and
 requires successful local command output in a continuation prompt. Inspect its
 trace and final answer when evaluating command selection and recovery; a
 successful process alone does not prove the answer is accurate.
+
+### Temporary tool diagnostics
+
+Run interactive chat with `OCTOPUS_DEBUG_TOOLS=1` to print one JSON record to
+stderr for every tool result, including rejected arguments and launch errors:
+
+```bash
+OCTOPUS_DEBUG_TOOLS=1 ./build/local-amd-hip-debug/octo
+# Optionally keep the diagnostic stream separate:
+OCTOPUS_DEBUG_TOOLS=1 ./build/local-amd-hip-debug/octo 2>debug-tools.log
+```
+
+Each record includes `call_id`, `tool`, `arguments`, `status` and `output`.
+For `os.exec`, `output` includes the command's exit code, stdout and stderr.
+Tool status `success` means execution was observed; a nonzero `exit_code` still
+means the command failed. Diagnostics are off unless the value is exactly `1`,
+replace the transient spinner while enabled, and do not enter model history or
+change tool execution. Records are emitted after each outcome; this is a small
+chat diagnostic switch, not an inference trace or an execution timeout.
