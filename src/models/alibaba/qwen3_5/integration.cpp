@@ -117,6 +117,11 @@ llm::CompileResult Qwen35PromptCompiler::compile(const llm::Conversation &conver
 }
 
 llm::ParseResult Qwen35ResponseParser::parse(const llm::RawCompletion &completion) const {
+    return parse(completion, {});
+}
+
+llm::ParseResult Qwen35ResponseParser::parse(const llm::RawCompletion &completion,
+                                             const std::vector<tool::Definition> &tools) const {
     /**
      * Recognize the Qwen tool-call protocol in generated text. A tag is
      * considered only at the beginning of the output or a new line;
@@ -173,9 +178,9 @@ llm::ParseResult Qwen35ResponseParser::parse(const llm::RawCompletion &completio
             return llm::ParseResult::failure("invalid tool name");
         }
         /**
-         * Parameter bodies are retained as strings in a JSON object; this
-         * parser checks protocol structure and duplicates, while the
-         * selected tool validator decides whether the arguments are valid.
+         * XML strings remain literal. Declared non-string parameter types
+         * use JSON syntax, as rendered by the native Qwen template. Invalid
+         * values remain strings for the executor to reject through the schema.
          */
         auto arguments = nlohmann::json::object();
         cursor = name_end + 2;
@@ -193,6 +198,25 @@ llm::ParseResult Qwen35ResponseParser::parse(const llm::RawCompletion &completio
             if (value_end == std::string::npos)
                 return llm::ParseResult::failure("incomplete tool parameter");
             arguments[key] = completion.text.substr(key_end + 2, value_end - key_end - 2);
+            for (const auto &definition : tools) {
+                if (definition.identity() != name)
+                    continue;
+                const auto properties = definition.parameters.find("properties");
+                if (properties == definition.parameters.end() || !properties->is_object())
+                    break;
+                const auto property = properties->find(key);
+                if (property == properties->end() || !property->is_object())
+                    break;
+                const auto type = property->value("type", nlohmann::json());
+                if (type == "array" || type == "object" || type == "boolean" || type == "integer" ||
+                    type == "number" || type == "null") {
+                    auto value =
+                        nlohmann::json::parse(arguments[key].get<std::string>(), nullptr, false);
+                    if (!value.is_discarded())
+                        arguments[key] = std::move(value);
+                }
+                break;
+            }
             cursor = value_end + parameter_close.size();
         }
         if (completion.text.compare(cursor, close.size(), close) != 0)

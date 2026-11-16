@@ -63,15 +63,20 @@ int main(int argc, char **argv) {
                 included |= prompt.find(message.content) != std::string::npos;
             if (payload.at("status") != "success" || !payload.at("output").is_object() ||
                 payload.at("output").at("stdout") != "octopus-exec-probe" ||
-                payload.at("output").at("exit_code") != 0 || !included)
+                payload.at("output").at("exit_code") != 0 || !included) {
+                std::cerr << "os.exec verification failed: included_in_prompt=" << included
+                          << " payload=" << payload.dump() << '\n';
                 return 1;
+            }
             std::cout << "os.exec: id=" << message.tool_call_id
                       << " included_in_prompt=" << included << " result=" << payload.dump() << '\n';
         }
-        return count == 1 &&
-                       result.value().response.text.find("octopus-exec-probe") != std::string::npos
-                   ? 0
-                   : 1;
+        const bool matched =
+            result.value().response.text.find("octopus-exec-probe") != std::string::npos;
+        if (count != 1 || !matched)
+            std::cerr << "os.exec probe failed: tool_results=" << count
+                      << " response=" << result.value().response.text << '\n';
+        return count == 1 && matched ? 0 : 1;
     }
     std::string previous_id;
     for (int i = 0; i < 2; ++i) {

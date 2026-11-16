@@ -47,7 +47,7 @@ CompletionResult Runtime::completeImpl(const CompletionRequest &request, Complet
         return rawResult(raw);
     }
 
-    const auto parsed = integration_.parser().parse(raw);
+    const auto parsed = integration_.parser().parse(raw, request.conversation.tools);
     if (!parsed.hasValue()) {
         return CompletionResult::failure(
             parsed.error().empty() ? "assistant response parsing failed" : parsed.error());
