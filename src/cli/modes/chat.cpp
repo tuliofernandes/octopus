@@ -14,7 +14,34 @@
 #include <utility>
 
 namespace octopus {
+
 namespace {
+
+class ToolActivity final : public tool::ActivityObserver {
+  public:
+    explicit ToolActivity(TranscriptRenderer &renderer) : renderer_(renderer) {}
+
+    void started(const tool::ActivityStart &event) override {
+        renderer_.updateActivity(event.label);
+    }
+
+    void finished(const tool::ActivityStart &, const tool::Result &result) override {
+        std::string text =
+            result.summary.value_or(result.status == tool::Status::Success     ? "Ok"
+                                    : result.status == tool::Status::Cancelled ? "Cancelled"
+                                                                               : "Failed");
+        if (result.duration)
+            text += ". " +
+                    std::to_string(
+                        std::chrono::duration_cast<std::chrono::milliseconds>(*result.duration)
+                            .count()) +
+                    "ms";
+        renderer_.updateActivity(text);
+    }
+
+  private:
+    TranscriptRenderer &renderer_;
+};
 
 constexpr const char *kUserPrompt = "> ";
 constexpr const char *kContinuationPrompt = "... ";
@@ -131,8 +158,10 @@ ChatRunResult runCliChat(const CliOptions &options, llm::Runtime &runtime, std::
         ScopedGenerationCancelHandler cancel_handler;
         request.cancellation = &cancel_handler.token();
         renderer.startSpinner();
-        auto completion = tool_runtime ? tool_runtime->turn(input.text, request.cancellation, &sink)
-                                       : runtime.completeStreaming(request, sink);
+        ToolActivity activity(renderer);
+        auto completion =
+            tool_runtime ? tool_runtime->turn(input.text, request.cancellation, &sink, &activity)
+                         : runtime.completeStreaming(request, sink);
 
         if (completionFailed(completion)) {
             result.exit_code = 1;

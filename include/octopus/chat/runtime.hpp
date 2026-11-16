@@ -5,6 +5,7 @@
 #include <cstddef>
 
 namespace octopus::chat {
+
 class Runtime final {
   public:
     Runtime(llm::Runtime &llm, const tool::Registry &registry, const tool::Executor &executor,
@@ -13,7 +14,8 @@ class Runtime final {
           round_limit_(round_limit) {}
 
     llm::CompletionResult turn(const std::string &text, const core::CancellationToken *cancellation,
-                               llm::CompletionSink *sink = nullptr);
+                               llm::CompletionSink *sink = nullptr,
+                               tool::ActivityObserver *observer = nullptr);
 
     const llm::Conversation &history() const { return history_; }
 
@@ -26,4 +28,5 @@ class Runtime final {
     std::size_t next_id_ = 1;
     llm::Conversation history_;
 };
+
 } /* namespace octopus::chat */

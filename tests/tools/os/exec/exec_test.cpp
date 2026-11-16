@@ -3,6 +3,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <csignal>
 #include <fstream>
+#include <sys/resource.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -174,4 +175,145 @@ TEST_CASE("os.exec policy denial and policy exceptions prevent process creation"
     policy.fail = true;
     CHECK(Executor(registry, policy).execute(call).status == Status::Failure);
     CHECK_FALSE(std::filesystem::exists(ready));
+}
+
+TEST_CASE("os.exec bounds normalized UTF-8 and drains alternating streams") {
+    Registry registry;
+    loadTools(registry, TOOL_RESOURCE_ROOT);
+    AllowAllSecurityPolicy policy;
+    Executor executor(registry, policy);
+    auto invoke = [&](const char *mode) {
+        return executor.execute(
+            {"id", "os.exec", {{"program", PROCESS_FIXTURE}, {"args", {mode}}}});
+    };
+    auto cut = invoke("utf-cut");
+    CHECK(cut.output.at("stdout").get<std::string>() == std::string(8191, 'x'));
+    CHECK(cut.output.at("stdout_truncated") == true);
+    auto replacements = invoke("replacement-volume");
+    CHECK_NOTHROW(replacements.output.dump());
+    CHECK(replacements.output.at("stdout").get<std::string>().size() <= 8192);
+    CHECK(replacements.output.at("stdout_truncated") == true);
+    auto alternating = invoke("alternating");
+    CHECK(alternating.output.at("exit_code") == 0);
+    CHECK(alternating.output.at("stdout_truncated") == true);
+    CHECK(alternating.output.at("stderr_truncated") == true);
+}
+
+TEST_CASE("os.exec inherits cwd environment and PATH without leaking descriptors or zombies") {
+    Registry registry;
+    loadTools(registry, TOOL_RESOURCE_ROOT);
+    AllowAllSecurityPolicy policy;
+    Executor executor(registry, policy);
+    const char *previous = getenv("OCTOPUS_EXEC_TEST");
+    const std::optional<std::string> saved =
+        previous ? std::optional<std::string>(previous) : std::nullopt;
+
+    struct Restore {
+        std::optional<std::string> value;
+
+        ~Restore() {
+            if (value)
+                setenv("OCTOPUS_EXEC_TEST", value->c_str(), 1);
+            else
+                unsetenv("OCTOPUS_EXEC_TEST");
+        }
+    } restore{saved};
+
+    REQUIRE(setenv("OCTOPUS_EXEC_TEST", "inherited value", 1) == 0);
+    auto context = executor.execute(
+        {"context", "os.exec", {{"program", PROCESS_FIXTURE}, {"args", {"context"}}}});
+    CHECK(context.output.at("stdout") == std::filesystem::current_path().string());
+    CHECK(context.output.at("stderr") == "inherited value");
+    CHECK(executor.execute({"path", "os.exec", {{"program", "printf"}, {"args", {"literal"}}}})
+              .output.at("stdout") == "literal");
+    CHECK(
+        executor.execute({"127", "os.exec", {{"program", "/bin/sh"}, {"args", {"-c", "exit 127"}}}})
+            .output.at("exit_code") == 127);
+    CHECK(executor
+              .execute({"permission",
+                        "os.exec",
+                        {{"program", "/dev/null"}, {"args", nlohmann::json::array()}}})
+              .status == Status::Failure);
+    auto countFds = [] {
+        std::size_t count = 0;
+        for (const auto &entry : std::filesystem::directory_iterator("/proc/self/fd")) {
+            (void)entry;
+            ++count;
+        }
+        return count;
+    };
+    const auto before = countFds();
+    for (int i = 0; i < 12; ++i) {
+        auto result = executor.execute(
+            {"repeat", "os.exec", {{"program", PROCESS_FIXTURE}, {"args", {"pid"}}}});
+        REQUIRE(result.status == Status::Success);
+        const auto child =
+            static_cast<pid_t>(std::stoi(result.output.at("stdout").get<std::string>()));
+        int status;
+        CHECK(waitpid(child, &status, WNOHANG) == -1);
+        CHECK(errno == ECHILD);
+    }
+    CHECK(countFds() == before);
+}
+
+TEST_CASE("os.exec reports pipe acquisition failure without leaking resources") {
+    Registry registry;
+    loadTools(registry, TOOL_RESOURCE_ROOT);
+    AllowAllSecurityPolicy policy;
+    struct rlimit original;
+    REQUIRE(getrlimit(RLIMIT_NOFILE, &original) == 0);
+
+    struct RestoreLimit {
+        struct rlimit original;
+
+        ~RestoreLimit() { setrlimit(RLIMIT_NOFILE, &original); }
+    } restore{original};
+
+    auto limited = original;
+    limited.rlim_cur = 3;
+    REQUIRE(setrlimit(RLIMIT_NOFILE, &limited) == 0);
+    auto failure =
+        Executor(registry, policy)
+            .execute({"no-fds",
+                      "os.exec",
+                      {{"program", PROCESS_FIXTURE}, {"args", nlohmann::json::array()}}});
+    CHECK(failure.status == Status::Failure);
+    CHECK(failure.output.get<std::string>().find("pipe:") != std::string::npos);
+}
+
+TEST_CASE("os.exec normalizes auxiliary descriptors when standard streams are closed") {
+    Registry registry;
+    loadTools(registry, TOOL_RESOURCE_ROOT);
+    AllowAllSecurityPolicy policy;
+    for (int mask : {1, 2, 4, 7}) {
+        const auto child = fork();
+        REQUIRE(child >= 0);
+        if (child == 0) {
+            for (int fd = 0; fd < 3; ++fd)
+                if (mask & (1 << fd))
+                    close(fd);
+            try {
+                const auto result =
+                    Executor(registry, policy)
+                        .execute({"closed",
+                                  "os.exec",
+                                  {{"program", PROCESS_FIXTURE}, {"args", {"argv", "literal"}}}});
+                _exit(result.status == Status::Success &&
+                              result.output.at("stdout") == "[literal]" &&
+                              result.output.at("stderr") == "diagnostic"
+                          ? 0
+                          : 1);
+            } catch (...) {
+                _exit(2);
+            }
+        }
+        int status = 0;
+        pid_t waited;
+        do {
+            waited = waitpid(child, &status, 0);
+        } while (waited < 0 && errno == EINTR);
+        REQUIRE(waited == child);
+        REQUIRE(WIFEXITED(status));
+        CHECK(WEXITSTATUS(status) == 0);
+    }
 }

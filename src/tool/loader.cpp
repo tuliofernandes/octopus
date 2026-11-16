@@ -9,6 +9,7 @@
 #include <vector>
 
 namespace octopus::tool {
+
 void loadTools(Registry &registry, const std::filesystem::path &root) {
     namespace fs = std::filesystem;
     std::vector<fs::path> manifests;
@@ -56,4 +57,5 @@ void loadTools(Registry &registry, const std::filesystem::path &root) {
             throw std::runtime_error("failed to register tool: " + dir.string());
     }
 }
+
 } /* namespace octopus::tool */

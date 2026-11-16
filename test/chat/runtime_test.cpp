@@ -5,6 +5,7 @@
 #include <sstream>
 
 namespace {
+
 std::string validateEmpty(const nlohmann::json &args) {
     return args.is_object() && args.empty() ? "" : "expected an empty object";
 }
@@ -41,6 +42,7 @@ class Backend : public octopus::llm::InferenceBackend {
             {calls++ == 0 ? "call" : "done", octopus::llm::FinishReason::EndOfGeneration, 0});
     }
 };
+
 } /* namespace */
 
 TEST_CASE("chat executes one call and passes its correlated result to the next "
@@ -339,5 +341,38 @@ TEST_CASE("chat executes real os.exec and retains bounded objects across turns")
         CHECK(result.tool_call_id != previous_id);
         CHECK(messages[messages.size() - 2].tool_calls[0].id == result.tool_call_id);
         previous_id = result.tool_call_id;
+    }
+}
+
+TEST_CASE("CLI presents generic tool activity summaries without adding them to history") {
+    Compiler compiler;
+    Parser parser;
+    Backend backend;
+    octopus::llm::ModelIntegration model({true, false, false}, compiler, parser);
+    octopus::llm::Runtime llm(model, backend);
+    octopus::tool::Registry registry;
+    REQUIRE(registry.add(
+        {"misc", "hello", "hello", {{"type", "object"}}, {}},
+        [](const auto &, const auto *) {
+            return octopus::tool::Outcome{octopus::tool::Status::Success, "hidden", "Exit 2"};
+        },
+        validateEmpty, [](const auto &) { return "Running example"; }));
+    octopus::tool::AllowAllSecurityPolicy policy;
+    octopus::tool::Executor executor(registry, policy);
+    octopus::chat::Runtime chat(llm, registry, executor, {});
+    octopus::ChatPresentation presentation;
+    presentation.capabilities.interactive_session = true;
+    presentation.capabilities.cursor_control = true;
+    presentation.capabilities.erase_line = true;
+    presentation.capabilities.columns = 80;
+    std::istringstream in("call\n");
+    std::ostringstream out, err;
+    CHECK(octopus::runCliChat({}, llm, in, out, err, presentation, &chat).exit_code == 0);
+    CHECK(out.str().find("Running example") != std::string::npos);
+    CHECK(out.str().find("Exit 2. ") != std::string::npos);
+    CHECK(out.str().find("ms") != std::string::npos);
+    for (const auto &message : chat.history().messages) {
+        CHECK(message.content.find("Running example") == std::string::npos);
+        CHECK(message.content.find("Exit 2") == std::string::npos);
     }
 }

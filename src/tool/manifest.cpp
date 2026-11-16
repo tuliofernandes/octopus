@@ -6,6 +6,7 @@
 #include <stdexcept>
 
 namespace octopus::tool {
+
 Definition loadManifest(const std::filesystem::path &root, const std::string &category,
                         const std::string &name) {
     /**
@@ -32,8 +33,8 @@ Definition loadManifest(const std::filesystem::path &root, const std::string &ca
         if (def.category != category || def.name != name || def.description.empty())
             throw std::runtime_error("invalid manifest identity or description");
         /**
-         * Only the schema root is checked here. It is exposed to the model;
-         * the tool module supplies the validator that checks actual calls.
+         * Validate and compile before the loader opens native code. The
+         * registry retains its own compiled validator for actual calls.
          */
         if (!def.parameters.is_object() ||
             def.parameters.value("type", nlohmann::json()) != "object")
@@ -44,4 +45,5 @@ Definition loadManifest(const std::filesystem::path &root, const std::string &ca
         throw std::runtime_error("invalid manifest " + path.string() + ": " + e.what());
     }
 }
+
 } /* namespace octopus::tool */

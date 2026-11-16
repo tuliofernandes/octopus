@@ -119,6 +119,7 @@ class TranscriptRenderer final {
     void showThinking();
     void finishThinking(std::chrono::steady_clock::duration elapsed);
     void startSpinner();
+    void updateActivity(std::string_view label);
     void stopSpinner() noexcept;
     void clearActivity() noexcept;
     void renderAssistant(std::string_view markdown);
@@ -140,6 +141,7 @@ class TranscriptRenderer final {
     std::thread spinner_thread_;
     bool spinner_stop_requested_ = false;
     bool activity_visible_ = false;
+    std::string activity_label_;
 };
 
 } /* namespace octopus */

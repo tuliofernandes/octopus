@@ -47,7 +47,7 @@ target_compile_features(octopus_model_completion_probe PRIVATE cxx_std_17)
 target_compile_options(octopus_model_completion_probe PRIVATE
         -Wall -Wextra -Wpedantic -Werror)
 
-add_executable(octopus_tool_tests tool/tool_test.cpp tool/schema_test.cpp ../tests/tools/misc/hello_world/hello_world_test.cpp)
+add_executable(octopus_tool_tests tool/tool_test.cpp tool/schema_test.cpp tool/activity_test.cpp ../tests/tools/misc/hello_world/hello_world_test.cpp)
 add_dependencies(octopus_tool_tests octopus_tool_hello_world)
 target_link_libraries(octopus_tool_tests PRIVATE octopus_tool Catch2::Catch2WithMain)
 target_compile_features(octopus_tool_tests PRIVATE cxx_std_17)
@@ -72,3 +72,8 @@ add_executable(octopus_process_fixture ../tests/tools/os/exec/process_fixture.cp
 target_sources(octopus_tool_tests PRIVATE ../tests/tools/os/exec/exec_test.cpp)
 add_dependencies(octopus_tool_tests octopus_process_fixture)
 target_compile_definitions(octopus_tool_tests PRIVATE PROCESS_FIXTURE="$<TARGET_FILE:octopus_process_fixture>")
+add_dependencies(octopus_tests octopus_tool_os_exec octopus_tool_hello_world octopus_process_fixture)
+target_compile_definitions(octopus_tests PRIVATE TOOL_RESOURCE_ROOT="${CMAKE_BINARY_DIR}/share/octopus/tools" PROCESS_FIXTURE="$<TARGET_FILE:octopus_process_fixture>")
+
+add_dependencies(octopus_tool_tests octopus_tool_os_exec)
+add_dependencies(octopus_tool_call_probe octopus_tool_os_exec)

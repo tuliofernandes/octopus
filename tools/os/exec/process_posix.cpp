@@ -15,6 +15,7 @@
 extern char **environ;
 
 namespace octopus::tool::os_exec {
+
 namespace {
 
 void check(int error, const char *operation) {
@@ -105,6 +106,10 @@ class Child {
     Child(const Child &) = delete;
     Child &operator=(const Child &) = delete;
 
+    Child(Child &&other) noexcept : pid_(std::exchange(other.pid_, -1)) {}
+
+    Child &operator=(Child &&) = delete;
+
     ~Child() noexcept {
         if (pid_ > 0) {
             kill(-pid_, SIGKILL);
@@ -127,6 +132,20 @@ class Child {
             check(error, "waitpid");
         }
         return false;
+    }
+
+    void wait() {
+        if (pid_ <= 0)
+            return;
+        int status;
+        pid_t result;
+        do {
+            result = waitpid(pid_, &status, 0);
+        } while (result < 0 && errno == EINTR);
+        const int error = result < 0 ? errno : 0;
+        if (result > 0 || error == ECHILD)
+            pid_ = -1;
+        check(error, "cleanup waitpid");
     }
 
     void terminate() {
@@ -234,65 +253,75 @@ Outcome run(const CommandRequest &request, const core::CancellationToken *cancel
     Child child(pid);
     output[1].reset();
     error[1].reset();
-    Capture captures[2];
-    Fd *readers[] = {&output[0], &error[0]};
-    bool cancelled = false, done = false, incomplete = false;
-    int status = 0;
-    std::array<char, 4096> buffer;
-    auto drain = [&](int index, std::size_t budget) {
-        auto &reader = *readers[index];
-        while (reader.get() >= 0 && budget) {
-            auto count = read(reader.get(), buffer.data(), std::min(budget, buffer.size()));
-            if (count > 0) {
-                captures[index].append(buffer.data(), static_cast<std::size_t>(count));
-                budget -= static_cast<std::size_t>(count);
-            } else if (count == 0) {
-                reader.reset();
+    try {
+        Capture captures[2];
+        Fd *readers[] = {&output[0], &error[0]};
+        bool cancelled = false, done = false, incomplete = false;
+        int status = 0;
+        std::array<char, 4096> buffer;
+        auto drain = [&](int index, std::size_t budget) {
+            auto &reader = *readers[index];
+            while (reader.get() >= 0 && budget) {
+                auto count = read(reader.get(), buffer.data(), std::min(budget, buffer.size()));
+                if (count > 0) {
+                    captures[index].append(buffer.data(), static_cast<std::size_t>(count));
+                    budget -= static_cast<std::size_t>(count);
+                } else if (count == 0) {
+                    reader.reset();
+                    break;
+                } else if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)
+                    break;
+                else
+                    check(errno, "read");
+            }
+        };
+        while (!done) {
+            done = child.reap(status);
+            if (done)
                 break;
-            } else if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)
-                break;
-            else
-                check(errno, "read");
+            if (cancellation && cancellation->isCancellationRequested() && !cancelled) {
+                child.terminate();
+                cancelled = true;
+            }
+            pollfd descriptors[] = {{readers[0]->get(), POLLIN, 0}, {readers[1]->get(), POLLIN, 0}};
+            int ready = poll(descriptors, 2, 50);
+            if (ready < 0 && errno != EINTR)
+                check(errno, "poll");
+            for (int i = 0; i < 2; ++i) {
+                if (descriptors[i].revents & POLLNVAL)
+                    throw std::runtime_error("poll: invalid descriptor");
+                if (descriptors[i].revents & (POLLIN | POLLHUP | POLLERR))
+                    drain(i, 16384);
+            }
         }
-    };
-    while (!done) {
-        done = child.reap(status);
-        if (done)
-            break;
-        if (cancellation && cancellation->isCancellationRequested() && !cancelled) {
-            child.terminate();
-            cancelled = true;
-        }
-        pollfd descriptors[] = {{readers[0]->get(), POLLIN, 0}, {readers[1]->get(), POLLIN, 0}};
-        int ready = poll(descriptors, 2, 50);
-        if (ready < 0 && errno != EINTR)
-            check(errno, "poll");
         for (int i = 0; i < 2; ++i) {
-            if (descriptors[i].revents & POLLNVAL)
-                throw std::runtime_error("poll: invalid descriptor");
-            if (descriptors[i].revents & (POLLIN | POLLHUP | POLLERR))
-                drain(i, 16384);
+            drain(i, 8193);
+            incomplete |= readers[i]->get() >= 0;
+            readers[i]->reset();
         }
+        for (auto &capture : captures)
+            capture.normalize();
+        nlohmann::json result = {{"exit_code", WIFEXITED(status)
+                                                   ? nlohmann::json(WEXITSTATUS(status))
+                                                   : nlohmann::json(nullptr)},
+                                 {"signal", WIFSIGNALED(status) ? nlohmann::json(WTERMSIG(status))
+                                                                : nlohmann::json(nullptr)},
+                                 {"stdout", captures[0].text},
+                                 {"stderr", captures[1].text},
+                                 {"stdout_truncated", captures[0].truncated},
+                                 {"stderr_truncated", captures[1].truncated},
+                                 {"capture_incomplete", incomplete}};
+        std::string summary = WIFEXITED(status) ? "Exit " + std::to_string(WEXITSTATUS(status))
+                                                : "Signal " + std::to_string(WTERMSIG(status));
+        return {cancelled ? Status::Cancelled : Status::Success, std::move(result),
+                std::move(summary)};
+    } catch (...) {
+        child.terminate();
+        output[0].reset();
+        error[0].reset();
+        child.wait();
+        throw;
     }
-    for (int i = 0; i < 2; ++i) {
-        drain(i, 8193);
-        incomplete |= readers[i]->get() >= 0;
-        readers[i]->reset();
-    }
-    for (auto &capture : captures)
-        capture.normalize();
-    nlohmann::json result = {{"exit_code", WIFEXITED(status) ? nlohmann::json(WEXITSTATUS(status))
-                                                             : nlohmann::json(nullptr)},
-                             {"signal", WIFSIGNALED(status) ? nlohmann::json(WTERMSIG(status))
-                                                            : nlohmann::json(nullptr)},
-                             {"stdout", captures[0].text},
-                             {"stderr", captures[1].text},
-                             {"stdout_truncated", captures[0].truncated},
-                             {"stderr_truncated", captures[1].truncated},
-                             {"capture_incomplete", incomplete}};
-    std::string summary = WIFEXITED(status) ? "Exit " + std::to_string(WEXITSTATUS(status))
-                                            : "Signal " + std::to_string(WTERMSIG(status));
-    return {cancelled ? Status::Cancelled : Status::Success, std::move(result), std::move(summary)};
 }
 
 } /* namespace octopus::tool::os_exec */

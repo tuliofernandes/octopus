@@ -29,7 +29,7 @@ const char *statusName(tool::Status status) {
 
 llm::CompletionResult Runtime::turn(const std::string &text,
                                     const core::CancellationToken *cancellation,
-                                    llm::CompletionSink *sink) {
+                                    llm::CompletionSink *sink, tool::ActivityObserver *observer) {
     history_.messages.push_back({llm::Role::User, text});
     bool accepted = false;
     std::size_t rounds = 0;
@@ -106,7 +106,7 @@ llm::CompletionResult Runtime::turn(const std::string &text,
         bool cancelled = false;
         for (const auto &call : response.tool_calls) {
             auto result = cancelled ? tool::Result{call.id, tool::Status::Cancelled, "cancelled"}
-                                    : executor_.execute(call, cancellation);
+                                    : executor_.execute(call, cancellation, observer);
             cancelled = cancelled || result.status == tool::Status::Cancelled;
 
             /**

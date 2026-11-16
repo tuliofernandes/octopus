@@ -15,6 +15,14 @@ set(OCTOPUS_FORMAT_SOURCES
         src/chat/runtime.cpp
         test/chat/runtime_test.cpp
         include/octopus/core/cancellation.hpp
+        include/octopus/tool/activity.hpp
+        test/tool/activity_test.cpp
+        test/tool/legacy_module_fixture.cpp
+        tools/os/exec/main.cpp
+        tools/os/exec/process.hpp
+        tools/os/exec/process_posix.cpp
+        tests/tools/os/exec/exec_test.cpp
+        tests/tools/os/exec/process_fixture.cpp
         include/octopus/tool/tool.hpp
         src/tool/schema.hpp
         src/tool/schema.cpp
@@ -120,6 +128,15 @@ target_compile_features(octopus_tool PUBLIC cxx_std_17)
 target_link_libraries(octopus_tool PUBLIC nlohmann_json::nlohmann_json)
 target_compile_options(octopus_tool PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
+
+add_library(octopus_tool_os_exec MODULE tools/os/exec/main.cpp tools/os/exec/process_posix.cpp)
+target_include_directories(octopus_tool_os_exec PRIVATE include)
+target_compile_features(octopus_tool_os_exec PRIVATE cxx_std_17)
+target_compile_options(octopus_tool_os_exec PRIVATE -Wall -Wextra -Wpedantic -Werror)
+target_link_libraries(octopus_tool_os_exec PRIVATE nlohmann_json::nlohmann_json)
+set_target_properties(octopus_tool_os_exec PROPERTIES PREFIX "" OUTPUT_NAME "tool" LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/share/octopus/tools/os/exec")
+install(TARGETS octopus_tool_os_exec LIBRARY DESTINATION share/octopus/tools/os/exec)
+
 add_library(octopus_llm STATIC
         src/llm/completion.cpp
         src/llm/runtime.cpp)
@@ -183,13 +200,3 @@ include(CTest)
 if(Catch2_FOUND AND BUILD_TESTING)
         add_subdirectory(test)
 endif()
-
-add_library(octopus_tool_os_exec MODULE tools/os/exec/main.cpp tools/os/exec/process_posix.cpp)
-target_include_directories(octopus_tool_os_exec PRIVATE include)
-target_compile_features(octopus_tool_os_exec PRIVATE cxx_std_17)
-target_compile_options(octopus_tool_os_exec PRIVATE -Wall -Wextra -Wpedantic -Werror)
-target_link_libraries(octopus_tool_os_exec PRIVATE nlohmann_json::nlohmann_json)
-set_target_properties(octopus_tool_os_exec PROPERTIES PREFIX "" OUTPUT_NAME "tool" LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/share/octopus/tools/os/exec")
-install(TARGETS octopus_tool_os_exec LIBRARY DESTINATION share/octopus/tools/os/exec)
-add_dependencies(octopus_tool_tests octopus_tool_os_exec)
-add_dependencies(octopus_tool_call_probe octopus_tool_os_exec)

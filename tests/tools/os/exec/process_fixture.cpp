@@ -22,6 +22,17 @@ int main(int argc, char **argv) {
         raise(SIGTERM);
         return 1;
     }
+    if (mode == "utf-cut")
+        std::cout << std::string(8191, 'x') << "\xe2\x82\xac";
+    if (mode == "replacement-volume")
+        std::cout << std::string(8192, char(0xff));
+    if (mode == "alternating")
+        for (int i = 0; i < 512; ++i) {
+            std::cout << std::string(4096, 'o');
+            std::cerr << std::string(4096, 'e');
+        }
+    if (mode == "pid")
+        std::cout << getpid();
     if (mode == "volume") {
         std::cerr << std::string(3 * 1024 * 1024, 'e');
         std::cout << std::string(3 * 1024 * 1024, 'o');

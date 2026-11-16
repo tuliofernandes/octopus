@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <optional>
 #include <ostream>
+#include <sstream>
 #include <stdlib.h>
 #include <streambuf>
 #include <string>
@@ -578,4 +579,41 @@ TEST_CASE("thematic break width is bounded and list indentation is preserved",
     REQUIRE(list.has_value());
     const auto plain = octopus::encodeTerminalDocument(*list, {false, false});
     CHECK(plain.find("  ──────") != std::string::npos);
+}
+
+TEST_CASE("spinner accepts sanitized transient tool labels and clears on response") {
+    std::ostringstream output;
+    octopus::TerminalCapabilities capabilities;
+    capabilities.interactive_session = true;
+    capabilities.cursor_control = true;
+    capabilities.erase_line = true;
+    capabilities.utf8 = true;
+    capabilities.columns = 30;
+    octopus::TranscriptRenderer renderer(output, capabilities, {}, std::chrono::hours{1});
+    renderer.startSpinner();
+    renderer.updateActivity("Running\ncommand\x1b[31m");
+    CHECK(output.str().find("Running command") != std::string::npos);
+    CHECK(output.str().find("\x1b[31m") == std::string::npos);
+    renderer.updateActivity("Exit 2. 0ms");
+    CHECK(output.str().find("Exit 2. 0ms") != std::string::npos);
+    renderer.renderAssistant("done");
+    CHECK(output.str().find("done") != std::string::npos);
+    std::ostringstream redirected;
+    octopus::TranscriptRenderer plain(redirected, {});
+    plain.startSpinner();
+    plain.updateActivity("hidden");
+    CHECK(redirected.str().empty());
+}
+
+TEST_CASE("spinner clips multibyte labels at terminal cell boundaries") {
+    std::ostringstream output;
+    auto capabilities = enhancedCapabilities();
+    capabilities.columns = 30;
+    octopus::TranscriptRenderer renderer(output, capabilities, {}, std::chrono::hours{1});
+    renderer.startSpinner();
+    renderer.updateActivity(std::string(22, 'x') + "界界界界");
+    renderer.stopSpinner();
+    CHECK(output.str().find("...") != std::string::npos);
+    CHECK(output.str().find("界") != std::string::npos);
+    CHECK(octopus::sanitizeTerminalText(output.str()).find("\xef\xbf\xbd") == std::string::npos);
 }

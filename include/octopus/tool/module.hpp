@@ -6,6 +6,7 @@
 #include <string>
 
 namespace octopus::tool {
+
 /* Tool modules must be built with the same C++ ABI and dependencies as Octopus. */
 struct ToolModule {
     unsigned version;
@@ -16,4 +17,5 @@ struct ToolModule {
 
 using ToolModuleEntry = const ToolModule *(*)();
 inline constexpr unsigned kToolModuleVersion = 2;
+
 } /* namespace octopus::tool */

@@ -1,5 +1,6 @@
 #pragma once
 #include "octopus/core/cancellation.hpp"
+#include "octopus/tool/activity.hpp"
 
 #include <chrono>
 #include <filesystem>
@@ -11,6 +12,7 @@
 #include <vector>
 
 namespace octopus::tool {
+
 struct Definition {
     std::string category, name, description;
     nlohmann::json parameters;
@@ -99,10 +101,12 @@ class Executor {
     Executor(const Registry &registry, const SecurityPolicy &policy)
         : registry_(registry), policy_(policy) {}
 
-    Result execute(const Call &call, const core::CancellationToken *cancellation = nullptr) const;
+    Result execute(const Call &call, const core::CancellationToken *cancellation = nullptr,
+                   ActivityObserver *observer = nullptr) const;
 
   private:
     const Registry &registry_;
     const SecurityPolicy &policy_;
 };
+
 } /* namespace octopus::tool */
