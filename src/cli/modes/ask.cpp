@@ -4,6 +4,7 @@
 
 #include <ostream>
 #include <string>
+#include <sys/utsname.h>
 #include <utility>
 
 namespace octopus {
@@ -11,10 +12,21 @@ namespace {
 
 /* These prompts are the first Octopus policy layer. They are intentionally */
 /* short: the harness should shape behavior without drowning out the user. */
-constexpr const char *kSystemPrompt = "You are Octopus, an AI agent for UNIX.";
+std::string systemPrompt() {
+    std::string prompt = "You are Octopus, an AI agent for UNIX.";
+    struct utsname host;
+    if (uname(&host) == 0)
+        prompt += " The local operating system is " + std::string(host.sysname) + ".";
+    prompt += " Tools execute locally on this computer.";
+    return prompt;
+}
 
 constexpr const char *kDeveloperPrompt =
-    "Answer the user's request directly. If you are unsure, say so.";
+    "Answer the user's request directly. If you are unsure, say so. "
+    "For facts about this computer, inspect the local system with available tools. "
+    "Use tool results as evidence. If a command fails, revise your approach for the local "
+    "operating system or explain the limitation instead of repeating the same failed call. "
+    "Once you have enough information, answer the user.";
 
 constexpr int kAskRepeatLastN = 64;
 constexpr float kAskRepeatPenalty = 1.05F;
@@ -30,7 +42,7 @@ llm::CompletionRequest makeConversationRequest(const CliOptions &options,
     llm::CompletionRequest request;
     /* Keep the conversation structured as long as possible. Rendering to one */
     /* model-specific prompt string happens later in the backend. */
-    request.conversation.messages.push_back({llm::Role::System, kSystemPrompt});
+    request.conversation.messages.push_back({llm::Role::System, systemPrompt()});
     request.conversation.messages.push_back({llm::Role::Developer, kDeveloperPrompt});
     request.conversation.messages.insert(request.conversation.messages.end(),
                                          conversation.messages.begin(),

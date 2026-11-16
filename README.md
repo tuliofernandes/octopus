@@ -278,6 +278,13 @@ output and cleared on completion/error/cancellation. Labels, summaries and
 durations are not added to model history. No output previews or permanent
 activity messages are emitted.
 
+CLI requests identify the local operating system through POSIX `uname` when
+available and state that tools run on this computer. Shared model-neutral
+instructions ask the model to use local evidence, revise its approach after
+command errors and answer once enough information is available. These are
+model instructions; the existing eight-round runtime limit remains enforced.
+The catalog explicitly requires `args: []` for programs without arguments.
+
 `AllowAllSecurityPolicy` deliberately permits valid calls in this controlled
 cycle, as authorized in the implementation plan. This is a temporary exception
 to the explicit-approval product principle; approval and isolation remain
@@ -305,9 +312,16 @@ Opt-in real-model probes verify executor output in continuation prompts:
 cmake --build build --target octopus_tool_call_probe
 ./build/test/octopus_tool_call_probe ./models/Qwen3.5-4B-Q4_K_M.gguf ./build/share/octopus/tools
 ./build/test/octopus_tool_call_probe ./models/Qwen3.5-4B-Q4_K_M.gguf ./build/share/octopus/tools os.exec
+./build/test/octopus_tool_call_probe ./models/Qwen3.5-4B-Q4_K_M.gguf ./build/share/octopus/tools uptime
 ```
 
 The default probe checks two hello calls and a normal turn. The `os.exec` mode
 requests `/usr/bin/printf`, checks actual structured stdout/exit status and its
 presence in the continuation prompt, then checks the final answer. Use the
 corresponding build directory for the local AMD HIP backend.
+
+The `uptime` probe uses the natural-language question “Há quanto tempo meu PC tá
+ligado?” with the CLI token budget, prints calls/results even on failure, and
+requires successful local command output in a continuation prompt. Inspect its
+trace and final answer when evaluating command selection and recovery; a
+successful process alone does not prove the answer is accurate.

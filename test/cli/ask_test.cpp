@@ -3,6 +3,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <sstream>
 #include <string>
+#include <sys/utsname.h>
 #include <utility>
 
 namespace {
@@ -194,4 +195,13 @@ TEST_CASE("one-shot ask reports backend errors on stderr", "[ask]") {
     CHECK(result.exit_code == 1);
     CHECK(out.str().empty());
     CHECK(err.str().find("model failed") != std::string::npos);
+}
+
+TEST_CASE("conversation requests identify the actual local operating system") {
+    struct utsname host;
+    REQUIRE(uname(&host) == 0);
+    auto request = octopus::makeConversationRequest({}, {});
+    REQUIRE(request.conversation.messages.front().role == octopus::llm::Role::System);
+    CHECK(request.conversation.messages.front().content.find(host.sysname) != std::string::npos);
+    CHECK(request.conversation.messages.front().content.find("locally") != std::string::npos);
 }
