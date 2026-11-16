@@ -16,8 +16,8 @@ TEST_CASE("real builtin returns a greeting and an in-range number") {
     REQUIRE(result.status == Status::Success);
     CHECK(result.call_id == "pilot-1");
     const std::string prefix = "Hello, world! Random number ";
-    REQUIRE(result.output.rfind(prefix, 0) == 0);
-    const auto digits = result.output.substr(prefix.size());
+    REQUIRE(result.output.get<std::string>().rfind(prefix, 0) == 0);
+    const auto digits = result.output.get<std::string>().substr(prefix.size());
     REQUIRE_FALSE(digits.empty());
     REQUIRE(digits.find_first_not_of("0123456789") == std::string::npos);
     CHECK(std::stoi(digits) >= 1000);

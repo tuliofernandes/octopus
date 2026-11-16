@@ -1,10 +1,12 @@
 #pragma once
 #include "octopus/core/cancellation.hpp"
 
+#include <chrono>
 #include <filesystem>
 #include <functional>
 #include <map>
 #include <nlohmann/json.hpp>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -26,13 +28,30 @@ struct Call {
 };
 enum class Status { Success, UnknownTool, InvalidArguments, Denied, Failure, Cancelled };
 
+struct Outcome {
+    Status status;
+    nlohmann::json output;
+    std::optional<std::string> summary;
+
+    Outcome(Status status, nlohmann::json output, std::optional<std::string> summary = std::nullopt)
+        : status(status), output(std::move(output)), summary(std::move(summary)) {}
+
+    Outcome(std::string text) : Outcome(Status::Success, std::move(text)) {}
+
+    Outcome(const char *text) : Outcome(std::string(text)) {}
+};
+
+using ActivityLabel = std::function<std::string(const nlohmann::json &)>;
+
 struct Result {
     std::string call_id;
     Status status;
-    std::string output;
+    nlohmann::json output;
+    std::optional<std::chrono::steady_clock::duration> duration = std::nullopt;
+    std::optional<std::string> summary = std::nullopt;
 };
 
-using Handler = std::function<std::string(const nlohmann::json &, const core::CancellationToken *)>;
+using Handler = std::function<Outcome(const nlohmann::json &, const core::CancellationToken *)>;
 /* Returns an empty string for valid arguments or a diagnostic otherwise. */
 using ArgumentValidator = std::function<std::string(const nlohmann::json &)>;
 
@@ -40,11 +59,13 @@ struct Entry {
     Definition definition;
     Handler handler;
     ArgumentValidator validator;
+    ActivityLabel label;
 };
 
 class Registry {
   public:
-    bool add(Definition definition, Handler handler, ArgumentValidator validator);
+    bool add(Definition definition, Handler handler, ArgumentValidator validator,
+             ActivityLabel label = {});
     const Entry *find(const std::string &identity) const;
     std::vector<Definition> definitions() const;
 

@@ -41,15 +41,18 @@ void loadTools(Registry &registry, const std::filesystem::path &root) {
         const ToolModule *module = entry();
         if (!module || module->version != kToolModuleVersion || !module->validate ||
             !module->execute)
-            throw std::runtime_error("invalid tool module: " + path.string());
+            throw std::runtime_error("invalid tool module (expected ABI v2): " + path.string());
         auto validate = module->validate;
         auto execute = module->execute;
+        auto label = module->label;
         if (!registry.add(
                 std::move(definition),
                 [library, execute](const auto &args, const auto *cancel) {
                     return execute(args, cancel);
                 },
-                [library, validate](const auto &args) { return validate(args); }))
+                [library, validate](const auto &args) { return validate(args); },
+                label ? ActivityLabel([library, label](const auto &args) { return label(args); })
+                      : ActivityLabel{}))
             throw std::runtime_error("failed to register tool: " + dir.string());
     }
 }

@@ -8,7 +8,8 @@
 #include <utility>
 
 namespace octopus::tool {
-bool Registry::add(Definition definition, Handler handler, ArgumentValidator validator) {
+bool Registry::add(Definition definition, Handler handler, ArgumentValidator validator,
+                   ActivityLabel label) {
     static const std::regex identifier("[a-z][a-z0-9_]*");
     if (!handler || !validator || !std::regex_match(definition.category, identifier) ||
         !std::regex_match(definition.name, identifier) || definition.description.empty() ||
@@ -26,7 +27,8 @@ bool Registry::add(Definition definition, Handler handler, ArgumentValidator val
     }
     const auto identity = definition.identity();
     return entries_
-        .emplace(identity, Entry{std::move(definition), std::move(handler), std::move(validator)})
+        .emplace(identity, Entry{std::move(definition), std::move(handler), std::move(validator),
+                                 std::move(label)})
         .second;
 }
 
@@ -61,7 +63,9 @@ Result Executor::execute(const Call &call, const core::CancellationToken *cancel
             return {call.id, Status::Denied, std::move(decision.reason)};
         if (cancellation && cancellation->isCancellationRequested())
             return {call.id, Status::Cancelled, "cancelled"};
-        return {call.id, Status::Success, entry->handler(call.arguments, cancellation)};
+        auto outcome = entry->handler(call.arguments, cancellation);
+        return {call.id, outcome.status, std::move(outcome.output), std::nullopt,
+                std::move(outcome.summary)};
     } catch (const std::exception &error) {
         return {call.id, Status::Failure, error.what()};
     }

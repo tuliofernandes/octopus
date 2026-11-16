@@ -1,6 +1,6 @@
 #pragma once
 
-#include "octopus/core/cancellation.hpp"
+#include "octopus/tool/tool.hpp"
 
 #include <nlohmann/json.hpp>
 #include <string>
@@ -10,9 +10,10 @@ namespace octopus::tool {
 struct ToolModule {
     unsigned version;
     std::string (*validate)(const nlohmann::json &);
-    std::string (*execute)(const nlohmann::json &, const core::CancellationToken *);
+    Outcome (*execute)(const nlohmann::json &, const core::CancellationToken *);
+    std::string (*label)(const nlohmann::json &) = nullptr;
 };
 
 using ToolModuleEntry = const ToolModule *(*)();
-inline constexpr unsigned kToolModuleVersion = 1;
+inline constexpr unsigned kToolModuleVersion = 2;
 } /* namespace octopus::tool */

@@ -7,7 +7,7 @@ std::string validate(const nlohmann::json &args) {
     return args.is_object() && args.empty() ? "" : "expected an empty object";
 }
 
-std::string execute(const nlohmann::json &, const octopus::core::CancellationToken *) {
+octopus::tool::Outcome execute(const nlohmann::json &, const octopus::core::CancellationToken *) {
     std::random_device seed;
     std::mt19937 generator(seed());
     std::uniform_int_distribution<int> distribution(1000, 99999);

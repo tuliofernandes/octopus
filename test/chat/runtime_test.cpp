@@ -59,7 +59,8 @@ TEST_CASE("chat executes one call and passes its correlated result to the next "
         {"misc", "hello", "hello", schema, {}},
         [&](const auto &, const auto *) {
             ++executed;
-            return "hello result";
+            return octopus::tool::Outcome{octopus::tool::Status::Success,
+                                          nlohmann::json{{"text", "hello result"}}};
         },
         validateEmpty));
     octopus::tool::AllowAllSecurityPolicy policy;
@@ -72,7 +73,7 @@ TEST_CASE("chat executes one call and passes its correlated result to the next "
     const auto &messages = compiler.requests[1].messages;
     REQUIRE(messages.size() == 3);
     CHECK(messages[1].tool_calls[0].id == messages[2].tool_call_id);
-    CHECK(messages[2].content.find("hello result") != std::string::npos);
+    CHECK(nlohmann::json::parse(messages[2].content).at("output").at("text") == "hello result");
     CHECK(executed == 1);
     const auto previous_id = messages[2].tool_call_id;
     auto later = chat.turn("follow up", nullptr);
