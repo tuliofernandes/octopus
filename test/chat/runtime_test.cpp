@@ -293,3 +293,51 @@ TEST_CASE("CLI chat renders final text without leaking tool protocol") {
     CHECK(out.str().find("hidden") == std::string::npos);
     CHECK(err.str().empty());
 }
+
+TEST_CASE("chat executes real os.exec and retains bounded objects across turns") {
+    struct ExecParser : octopus::llm::AssistantResponseParser {
+        octopus::llm::ParseResult
+        parse(const octopus::llm::RawCompletion &completion) const override {
+            if (completion.text == "call")
+                return octopus::llm::ParseResult::success(
+                    {"", {{"", "os.exec", {{"program", PROCESS_FIXTURE}, {"args", {"volume"}}}}}});
+            return octopus::llm::ParseResult::success({completion.text});
+        }
+    } parser;
+
+    struct RepeatingBackend : octopus::llm::InferenceBackend {
+        int calls = 0;
+
+        octopus::llm::InferenceResult generate(const octopus::llm::CompiledPrompt &,
+                                               const octopus::llm::GenerationOptions &,
+                                               const octopus::llm::CancellationToken *,
+                                               octopus::llm::CompletionSink *) override {
+            return octopus::llm::InferenceResult::success(
+                {calls++ % 2 == 0 ? "call" : "done", octopus::llm::FinishReason::EndOfGeneration,
+                 0});
+        }
+    } backend;
+
+    Compiler compiler;
+    octopus::llm::ModelIntegration model({true, false, false}, compiler, parser);
+    octopus::llm::Runtime llm(model, backend);
+    octopus::tool::Registry registry;
+    octopus::tool::loadTools(registry, TOOL_RESOURCE_ROOT);
+    octopus::tool::AllowAllSecurityPolicy policy;
+    octopus::tool::Executor executor(registry, policy);
+    octopus::chat::Runtime chat(llm, registry, executor, {});
+    std::string previous_id;
+    for (int i = 0; i < 2; ++i) {
+        REQUIRE(chat.turn("execute", nullptr).hasValue());
+        const auto &messages = compiler.requests.back().messages;
+        const auto &result = messages.back();
+        REQUIRE(result.role == octopus::llm::Role::Tool);
+        auto payload = nlohmann::json::parse(result.content);
+        CHECK(payload.at("output").is_object());
+        CHECK(payload.at("output").at("stdout").get<std::string>().size() == 8192);
+        CHECK(payload.at("output").at("stderr_truncated") == true);
+        CHECK(result.tool_call_id != previous_id);
+        CHECK(messages[messages.size() - 2].tool_calls[0].id == result.tool_call_id);
+        previous_id = result.tool_call_id;
+    }
+}
