@@ -138,7 +138,50 @@ struct Capture {
     std::string text;
     bool truncated = false;
 
-    void append(const char *data, std::size_t size) { text.append(data, size); }
+    std::size_t lines = 0;
+
+    void append(const char *data, std::size_t size) {
+        for (std::size_t i = 0; i < size; ++i) {
+            if (text.size() == 8192 || lines == 200) {
+                truncated = true;
+                return;
+            }
+            text.push_back(data[i]);
+            if (data[i] == '\n')
+                ++lines;
+        }
+    }
+
+    void normalize() {
+        std::string normalized;
+        for (std::size_t i = 0; i < text.size();) {
+            const auto lead = static_cast<unsigned char>(text[i]);
+            std::size_t width = lead < 0x80                    ? 1
+                                : lead >= 0xc2 && lead <= 0xdf ? 2
+                                : lead >= 0xe0 && lead <= 0xef ? 3
+                                : lead >= 0xf0 && lead <= 0xf4 ? 4
+                                                               : 0;
+            bool valid = width && i + width <= text.size();
+            for (std::size_t j = 1; valid && j < width; ++j) {
+                auto byte = static_cast<unsigned char>(text[i + j]);
+                valid = byte >= 0x80 && byte <= 0xbf;
+                if (j == 1)
+                    valid = valid && !(lead == 0xe0 && byte < 0xa0) &&
+                            !(lead == 0xed && byte >= 0xa0) && !(lead == 0xf0 && byte < 0x90) &&
+                            !(lead == 0xf4 && byte >= 0x90);
+            }
+            if (truncated && width && i + width > text.size())
+                break;
+            const std::string piece = valid ? text.substr(i, width) : "\xef\xbf\xbd";
+            if (normalized.size() + piece.size() > 8192) {
+                truncated = true;
+                break;
+            }
+            normalized += piece;
+            i += valid ? width : 1;
+        }
+        text = std::move(normalized);
+    }
 };
 
 } /* namespace */
@@ -232,6 +275,8 @@ Outcome run(const CommandRequest &request, const core::CancellationToken *cancel
         incomplete |= readers[i]->get() >= 0;
         readers[i]->reset();
     }
+    for (auto &capture : captures)
+        capture.normalize();
     nlohmann::json result = {{"exit_code", WIFEXITED(status) ? nlohmann::json(WEXITSTATUS(status))
                                                              : nlohmann::json(nullptr)},
                              {"signal", WIFSIGNALED(status) ? nlohmann::json(WTERMSIG(status))

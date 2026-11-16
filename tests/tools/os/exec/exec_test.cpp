@@ -52,3 +52,31 @@ TEST_CASE("os.exec observes EOF signals launch errors and rejects NUL") {
                         {{"program", PROCESS_FIXTURE}, {"args", {std::string("x\0y", 3)}}}})
               .status == Status::InvalidArguments);
 }
+
+TEST_CASE("os.exec drains volume while retaining independent bounded prefixes") {
+    Registry registry;
+    loadTools(registry, TOOL_RESOURCE_ROOT);
+    AllowAllSecurityPolicy policy;
+    Executor executor(registry, policy);
+    auto invoke = [&](std::vector<std::string> args) {
+        return executor.execute({"id", "os.exec", {{"program", PROCESS_FIXTURE}, {"args", args}}});
+    };
+    auto volume = invoke({"volume"});
+    REQUIRE(volume.status == Status::Success);
+    CHECK(volume.output.at("exit_code") == 0);
+    for (const auto *stream : {"stdout", "stderr"}) {
+        CHECK(volume.output.at(stream).get<std::string>().size() == 8192);
+        CHECK(volume.output.at(std::string(stream) + "_truncated") == true);
+    }
+    auto exact = invoke({"bytes", "8192"});
+    CHECK(exact.output.at("stdout_truncated") == false);
+    auto extra = invoke({"bytes", "8193"});
+    CHECK(extra.output.at("stdout_truncated") == true);
+    auto lines = invoke({"lines", "201"});
+    CHECK(lines.output.at("stdout").get<std::string>().size() == 400);
+    CHECK(lines.output.at("stdout_truncated") == true);
+    CHECK(invoke({"lines", "200"}).output.at("stdout_truncated") == false);
+    auto invalid = invoke({"invalid"});
+    CHECK_NOTHROW(invalid.output.dump());
+    CHECK(invalid.output.at("stdout").get<std::string>().find("\xef\xbf\xbd") != std::string::npos);
+}
