@@ -15,7 +15,18 @@ set(OCTOPUS_FORMAT_SOURCES
         src/chat/runtime.cpp
         test/chat/runtime_test.cpp
         include/octopus/core/cancellation.hpp
+        include/octopus/tool/activity.hpp
+        test/tool/activity_test.cpp
+        test/tool/legacy_module_fixture.cpp
+        tools/os/exec/main.cpp
+        tools/os/exec/process.hpp
+        tools/os/exec/process_posix.cpp
+        tests/tools/os/exec/exec_test.cpp
+        tests/tools/os/exec/process_fixture.cpp
         include/octopus/tool/tool.hpp
+        src/tool/schema.hpp
+        src/tool/schema.cpp
+        test/tool/schema_test.cpp
         src/tool/tool.cpp
         src/tool/manifest.cpp
         src/tool/loader.cpp
@@ -80,6 +91,7 @@ endif()
 find_package(Catch2 REQUIRED)
 find_package(md4c REQUIRED CONFIG)
 find_package(nlohmann_json REQUIRED CONFIG)
+find_package(nlohmann_json_schema_validator REQUIRED CONFIG)
 find_package(Threads REQUIRED)
 include(FetchContent)
 FetchContent_Declare(
@@ -99,7 +111,7 @@ target_include_directories(octopus_cli PUBLIC include)
 target_compile_features(octopus_cli PUBLIC cxx_std_17)
 target_compile_options(octopus_cli PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
-add_library(octopus_tool STATIC src/tool/tool.cpp src/tool/manifest.cpp src/tool/resources.cpp src/tool/loader.cpp)
+add_library(octopus_tool STATIC src/tool/schema.cpp src/tool/tool.cpp src/tool/manifest.cpp src/tool/resources.cpp src/tool/loader.cpp)
 file(COPY tools/ DESTINATION ${CMAKE_BINARY_DIR}/share/octopus/tools FILES_MATCHING PATTERN "manifest.json")
 install(DIRECTORY tools/ DESTINATION share/octopus/tools FILES_MATCHING PATTERN "manifest.json")
 add_library(octopus_tool_hello_world MODULE tools/misc/hello_world/main.cpp)
@@ -110,11 +122,20 @@ target_link_libraries(octopus_tool_hello_world PRIVATE nlohmann_json::nlohmann_j
 set_target_properties(octopus_tool_hello_world PROPERTIES PREFIX "" OUTPUT_NAME "tool" LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/share/octopus/tools/misc/hello_world")
 install(TARGETS octopus_tool_hello_world LIBRARY DESTINATION share/octopus/tools/misc/hello_world)
 target_compile_definitions(octopus_tool PRIVATE OCTOPUS_MODULE_SUFFIX="${CMAKE_SHARED_MODULE_SUFFIX}")
-target_link_libraries(octopus_tool PUBLIC ${CMAKE_DL_LIBS})
+target_link_libraries(octopus_tool PUBLIC ${CMAKE_DL_LIBS} PRIVATE nlohmann_json_schema_validator::validator)
 target_include_directories(octopus_tool PUBLIC include)
 target_compile_features(octopus_tool PUBLIC cxx_std_17)
 target_link_libraries(octopus_tool PUBLIC nlohmann_json::nlohmann_json)
 target_compile_options(octopus_tool PRIVATE -Wall -Wextra -Wpedantic -Werror)
+
+
+add_library(octopus_tool_os_exec MODULE tools/os/exec/main.cpp tools/os/exec/process_posix.cpp)
+target_include_directories(octopus_tool_os_exec PRIVATE include)
+target_compile_features(octopus_tool_os_exec PRIVATE cxx_std_17)
+target_compile_options(octopus_tool_os_exec PRIVATE -Wall -Wextra -Wpedantic -Werror)
+target_link_libraries(octopus_tool_os_exec PRIVATE nlohmann_json::nlohmann_json)
+set_target_properties(octopus_tool_os_exec PROPERTIES PREFIX "" OUTPUT_NAME "tool" LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/share/octopus/tools/os/exec")
+install(TARGETS octopus_tool_os_exec LIBRARY DESTINATION share/octopus/tools/os/exec)
 
 add_library(octopus_llm STATIC
         src/llm/completion.cpp
@@ -161,7 +182,7 @@ target_link_libraries(octopus_inference_llama_cpp PUBLIC octopus_llm PRIVATE lla
 target_compile_options(octopus_inference_llama_cpp PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 add_executable(octo apps/octo/main.cpp apps/octo/chat_session.cpp)
-add_dependencies(octo octopus_tool_hello_world)
+add_dependencies(octo octopus_tool_hello_world octopus_tool_os_exec)
 target_include_directories(octo PRIVATE include src)
 target_compile_features(octo PUBLIC cxx_std_17)
 target_link_libraries(octo PRIVATE

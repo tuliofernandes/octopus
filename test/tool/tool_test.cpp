@@ -244,7 +244,7 @@ TEST_CASE("tool-specific validators accept or reject arguments before dispatch")
     CHECK(valid.output == "file.txt");
     auto invalid = executor.execute({"two", "fs.read", {{"path", 42}}});
     CHECK(invalid.status == Status::InvalidArguments);
-    CHECK(invalid.output == "path must be a string");
+    CHECK_FALSE(invalid.output.empty());
     CHECK(invalid.call_id == "two");
     CHECK(calls == 1);
 }
@@ -306,7 +306,7 @@ TEST_CASE("loader discovers a tool by its manifest without a built-in mapping") 
     auto result =
         Executor(registry, policy).execute({"id", "other.greeting", nlohmann::json::object()});
     CHECK(result.status == Status::Success);
-    CHECK(result.output.rfind("Hello, world! Random number ", 0) == 0);
+    CHECK(result.output.get<std::string>().rfind("Hello, world! Random number ", 0) == 0);
 }
 
 TEST_CASE("loader reports a missing tool library") {
@@ -321,5 +321,35 @@ TEST_CASE("loader reports a missing tool library") {
     CHECK_THROWS_WITH(loadTools(registry, root),
                       Catch::Matchers::ContainsSubstring("cannot load tool"));
     CHECK(registry.definitions().empty());
+    fs::remove_all(root);
+}
+
+TEST_CASE("handler owns structured output and operational status") {
+    Registry registry;
+    REQUIRE(registry.add(
+        {"test", "outcome", "outcome", kSchema, {}},
+        [](const auto &, const auto *) {
+            return Outcome{Status::Cancelled, nlohmann::json{{"partial", true}}};
+        },
+        validateEmpty));
+    AllowAllSecurityPolicy policy;
+    const auto result = Executor(registry, policy)
+                            .execute({"structured", "test.outcome", nlohmann::json::object()});
+    CHECK(result.call_id == "structured");
+    CHECK(result.status == Status::Cancelled);
+    CHECK(result.output.at("partial") == true);
+}
+
+TEST_CASE("loader rejects ABI v1 before reading callbacks") {
+    namespace fs = std::filesystem;
+    const auto root = fs::temp_directory_path() / "octopus-legacy-module-test";
+    const auto dir = root / "misc/hello_world";
+    fs::create_directories(dir);
+    fs::copy_file(fs::path(TOOL_RESOURCE_ROOT) / "misc/hello_world/manifest.json",
+                  dir / "manifest.json", fs::copy_options::overwrite_existing);
+    fs::copy_file(LEGACY_MODULE_PATH, dir / (std::string("tool") + TOOL_MODULE_SUFFIX),
+                  fs::copy_options::overwrite_existing);
+    Registry registry;
+    CHECK_THROWS_WITH(loadTools(registry, root), Catch::Matchers::ContainsSubstring("ABI v2"));
     fs::remove_all(root);
 }

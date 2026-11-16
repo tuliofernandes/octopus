@@ -29,7 +29,9 @@ const char *statusName(tool::Status status) {
 
 llm::CompletionResult Runtime::turn(const std::string &text,
                                     const core::CancellationToken *cancellation,
-                                    llm::CompletionSink *sink) {
+                                    llm::CompletionSink *sink, tool::ActivityObserver *observer,
+                                    const ToolTrace &trace,
+                                    const GenerationTrace &generation_trace) {
     history_.messages.push_back({llm::Role::User, text});
     bool accepted = false;
     std::size_t rounds = 0;
@@ -57,7 +59,16 @@ llm::CompletionResult Runtime::turn(const std::string &text,
         request.conversation.tools = registry_.definitions();
         request.cancellation = cancellation;
 
+        const auto start = generation_trace ? std::chrono::steady_clock::now()
+                                            : std::chrono::steady_clock::time_point{};
         auto completion = sink ? llm_.completeStreaming(request, *sink) : llm_.complete(request);
+        if (generation_trace) {
+            const auto elapsed = std::chrono::steady_clock::now() - start;
+            try {
+                generation_trace(elapsed, completion);
+            } catch (...) {
+            }
+        }
 
         /**
          * Before a tool round is accepted, failure or cancellation discards the
@@ -106,7 +117,7 @@ llm::CompletionResult Runtime::turn(const std::string &text,
         bool cancelled = false;
         for (const auto &call : response.tool_calls) {
             auto result = cancelled ? tool::Result{call.id, tool::Status::Cancelled, "cancelled"}
-                                    : executor_.execute(call, cancellation);
+                                    : executor_.execute(call, cancellation, observer);
             cancelled = cancelled || result.status == tool::Status::Cancelled;
 
             /**
@@ -124,6 +135,12 @@ llm::CompletionResult Runtime::turn(const std::string &text,
              */
             nlohmann::json payload = {{"status", statusName(result.status)},
                                       {"output", result.output}};
+            if (trace) {
+                try {
+                    trace(call, payload, result.duration);
+                } catch (...) {
+                }
+            }
             history_.messages.push_back({llm::Role::Tool, payload.dump(), {}, call.id});
         }
 

@@ -20,6 +20,8 @@ class Qwen35PromptCompiler final : public llm::PromptCompiler {
 class Qwen35ResponseParser final : public llm::AssistantResponseParser {
   public:
     llm::ParseResult parse(const llm::RawCompletion &completion) const override;
+    llm::ParseResult parse(const llm::RawCompletion &completion,
+                           const std::vector<tool::Definition> &tools) const override;
 };
 
 class Qwen35Integration final {

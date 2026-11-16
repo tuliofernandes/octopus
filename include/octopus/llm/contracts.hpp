@@ -52,6 +52,11 @@ class AssistantResponseParser {
   public:
     virtual ~AssistantResponseParser() = default;
     virtual ParseResult parse(const RawCompletion &completion) const = 0;
+
+    virtual ParseResult parse(const RawCompletion &completion,
+                              const std::vector<tool::Definition> &) const {
+        return parse(completion);
+    }
 };
 
 class InferenceBackend {

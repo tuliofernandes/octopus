@@ -1,3 +1,4 @@
+#include "cli/terminal/text.hpp"
 #include "octopus/cli/terminal_renderer.hpp"
 
 #include <algorithm>
@@ -11,7 +12,9 @@
 #include <utility>
 
 namespace octopus {
+
 namespace {
+
 void ensureTranscriptEnding(std::string &output) {
     while (!output.empty() && output.back() == '\n') {
         output.pop_back();
@@ -53,6 +56,7 @@ void TranscriptRenderer::startSpinner() {
     {
         std::lock_guard<std::mutex> lock(output_mutex_);
         spinner_stop_requested_ = false;
+        activity_label_.clear();
         writeActivityLocked(capabilities_.utf8 ? "\xE2\xA0\x8B" : "|", false);
     }
     try {
@@ -62,6 +66,18 @@ void TranscriptRenderer::startSpinner() {
         spinner_stop_requested_ = true;
         clearActivityLocked();
     }
+}
+
+void TranscriptRenderer::updateActivity(std::string_view label) {
+    auto text = sanitizeTerminalText(label);
+    for (char &byte : text)
+        if (byte == '\n' || byte == '\t')
+            byte = ' ';
+    std::lock_guard<std::mutex> lock(output_mutex_);
+    if (spinner_stop_requested_)
+        return;
+    activity_label_ = std::move(text);
+    writeActivityLocked((capabilities_.utf8 ? "\xE2\xA0\x8B " : "| ") + activity_label_, false);
 }
 
 void TranscriptRenderer::stopSpinner() noexcept {
@@ -144,9 +160,18 @@ void TranscriptRenderer::writeActivityLocked(std::string_view text, bool permane
     }
 
     std::string displayed(text);
-    if (displayed.size() >= *width) {
+    if (cli_detail::textCellWidth(displayed) >= *width) {
         const std::size_t retained = *width > 4 ? *width - 4 : 0;
-        displayed.resize(retained);
+        std::size_t offset = 0, cells = 0;
+        while (offset < displayed.size()) {
+            auto decoded = cli_detail::decodeCodePoint(displayed, offset);
+            const auto count = cli_detail::terminalCellWidth(decoded.value);
+            if (cells + count > retained)
+                break;
+            cells += count;
+            offset += decoded.bytes;
+        }
+        displayed.resize(offset);
         displayed += "...";
     }
     std::string output = "\r\x1b[2K" + displayed + "\x1b[0m";
@@ -185,10 +210,14 @@ void TranscriptRenderer::runSpinner() noexcept {
         }
         try {
             if (capabilities_.utf8) {
-                writeActivityLocked(kUtf8Frames[frame % kUtf8Frames.size()], false);
+                writeActivityLocked(std::string(kUtf8Frames[frame % kUtf8Frames.size()]) +
+                                        (activity_label_.empty() ? "" : " " + activity_label_),
+                                    false);
                 frame = (frame + 1) % kUtf8Frames.size();
             } else {
-                writeActivityLocked(kAsciiFrames[frame % kAsciiFrames.size()], false);
+                writeActivityLocked(std::string(kAsciiFrames[frame % kAsciiFrames.size()]) +
+                                        (activity_label_.empty() ? "" : " " + activity_label_),
+                                    false);
                 frame = (frame + 1) % kAsciiFrames.size();
             }
         } catch (...) {

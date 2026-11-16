@@ -6,6 +6,7 @@
 
 #include <chrono>
 #include <csignal>
+#include <cstdlib>
 #include <iostream>
 #include <istream>
 #include <ostream>
@@ -14,7 +15,50 @@
 #include <utility>
 
 namespace octopus {
+
 namespace {
+
+const char *finishReasonName(llm::FinishReason reason) {
+    switch (reason) {
+    case llm::FinishReason::Stop:
+        return "stop";
+    case llm::FinishReason::MaxTokens:
+        return "max_tokens";
+    case llm::FinishReason::EndOfGeneration:
+        return "end_of_generation";
+    case llm::FinishReason::LoopDetected:
+        return "loop_detected";
+    case llm::FinishReason::Cancelled:
+        return "cancelled";
+    }
+    return "unknown";
+}
+
+class ToolActivity final : public tool::ActivityObserver {
+  public:
+    explicit ToolActivity(TranscriptRenderer &renderer) : renderer_(renderer) {}
+
+    void started(const tool::ActivityStart &event) override {
+        renderer_.updateActivity(event.label);
+    }
+
+    void finished(const tool::ActivityStart &, const tool::Result &result) override {
+        std::string text =
+            result.summary.value_or(result.status == tool::Status::Success     ? "Ok"
+                                    : result.status == tool::Status::Cancelled ? "Cancelled"
+                                                                               : "Failed");
+        if (result.duration)
+            text += ". " +
+                    std::to_string(
+                        std::chrono::duration_cast<std::chrono::milliseconds>(*result.duration)
+                            .count()) +
+                    "ms";
+        renderer_.updateActivity(text);
+    }
+
+  private:
+    TranscriptRenderer &renderer_;
+};
 
 constexpr const char *kUserPrompt = "> ";
 constexpr const char *kContinuationPrompt = "... ";
@@ -92,6 +136,53 @@ ChatRunResult runCliChat(const CliOptions &options, llm::Runtime &runtime, std::
 ChatRunResult runCliChat(const CliOptions &options, llm::Runtime &runtime, std::istream &in,
                          std::ostream &out, std::ostream &err, ChatPresentation presentation,
                          chat::Runtime *tool_runtime) {
+    const char *debug_setting = std::getenv("OCTOPUS_DEBUG_TOOLS");
+    const bool debug_tools = debug_setting && std::string(debug_setting) == "1";
+    std::size_t turn_number = 0, generation_number = 0;
+    chat::ToolTrace trace;
+    chat::GenerationTrace generation_trace;
+    if (debug_tools) {
+        generation_trace = [&](std::chrono::steady_clock::duration elapsed,
+                               const llm::CompletionResult &completion) {
+            nlohmann::json record = {
+                {"event", "generation"},
+                {"turn", turn_number},
+                {"round", ++generation_number},
+                {"duration_ms", std::chrono::duration<double, std::milli>(elapsed).count()}};
+            if (completion.hasValue()) {
+                const auto &value = completion.value();
+                record["status"] =
+                    value.finish_reason == llm::FinishReason::Cancelled ? "cancelled" : "success";
+                record["finish_reason"] = finishReasonName(value.finish_reason);
+                record["generated_tokens"] = value.generated_tokens;
+                record["tool_calls"] = value.response.tool_calls.size();
+            } else {
+                record["status"] = "failure";
+                record["error"] = completion.error();
+                record["generated_tokens"] = nullptr;
+                record["tool_calls"] = nullptr;
+                record["finish_reason"] = nullptr;
+            }
+            err << record.dump() << '\n';
+            err.flush();
+        };
+        trace = [&](const tool::Call &call, const nlohmann::json &payload,
+                    std::optional<std::chrono::steady_clock::duration> duration) {
+            auto record = payload;
+            record["event"] = "tool_result";
+            record["turn"] = turn_number;
+            record["round"] = generation_number;
+            record["duration_ms"] =
+                duration
+                    ? nlohmann::json(std::chrono::duration<double, std::milli>(*duration).count())
+                    : nlohmann::json(nullptr);
+            record["call_id"] = call.id;
+            record["tool"] = call.identity;
+            record["arguments"] = call.arguments;
+            err << record.dump() << '\n';
+            err.flush();
+        };
+    }
     ChatRunResult result;
     llm::Conversation conversation;
     const bool interactive_session = presentation.capabilities.interactive_session;
@@ -130,8 +221,14 @@ ChatRunResult runCliChat(const CliOptions &options, llm::Runtime &runtime, std::
         llm::CompletionRequest request = makeConversationRequest(options, conversation);
         ScopedGenerationCancelHandler cancel_handler;
         request.cancellation = &cancel_handler.token();
-        renderer.startSpinner();
-        auto completion = tool_runtime ? tool_runtime->turn(input.text, request.cancellation, &sink)
+        if (!debug_tools)
+            renderer.startSpinner();
+        ToolActivity activity(renderer);
+        ++turn_number;
+        generation_number = 0;
+        auto completion = tool_runtime ? tool_runtime->turn(input.text, request.cancellation, &sink,
+                                                            debug_tools ? nullptr : &activity,
+                                                            trace, generation_trace)
                                        : runtime.completeStreaming(request, sink);
 
         if (completionFailed(completion)) {

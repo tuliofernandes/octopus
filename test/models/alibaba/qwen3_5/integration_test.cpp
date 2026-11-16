@@ -222,3 +222,25 @@ TEST_CASE("Qwen3.5 compiler passes catalog and correlated history to template", 
     CHECK(engine.last_request.messages[3].role == "tool");
     CHECK(engine.last_request.messages[3].tool_call_id == "one");
 }
+
+TEST_CASE("Qwen decodes typed parameters using the advertised catalog and preserves strings") {
+    octopus::models::alibaba::qwen3_5::Qwen35ResponseParser parser;
+    octopus::llm::RawCompletion raw;
+    raw.text = "<tool_call>\n<function=os.exec>\n<parameter=program>\n[123]\n</"
+               "parameter>\n<parameter=args>\n[\"a b; "
+               "$HOME\",\"\"]\n</parameter>\n</function>\n</tool_call>";
+    std::vector<octopus::tool::Definition> tools{
+        {"os",
+         "exec",
+         "exec",
+         {{"type", "object"},
+          {"properties",
+           {{"program", {{"type", "string"}}},
+            {"args", {{"type", "array"}, {"items", {{"type", "string"}}}}}}}},
+         {}}};
+    auto result = parser.parse(raw, tools);
+    REQUIRE(result.hasValue());
+    const auto &args = result.value().tool_calls.at(0).arguments;
+    CHECK(args.at("program") == "[123]");
+    CHECK(args.at("args") == nlohmann::json::array({"a b; $HOME", ""}));
+}

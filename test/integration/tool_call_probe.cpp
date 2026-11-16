@@ -24,8 +24,8 @@ class RecordingCompiler final : public octopus::llm::PromptCompiler {
 };
 
 int main(int argc, char **argv) {
-    if (argc != 3) {
-        std::cerr << "usage: tool_call_probe MODEL TOOL_ROOT\n";
+    if (argc != 3 && argc != 4) {
+        std::cerr << "usage: tool_call_probe MODEL TOOL_ROOT [os.exec|uptime]\n";
         return 2;
     }
     octopus::inference::LlamaCppBackend backend({argv[1], 99, true});
@@ -39,9 +39,74 @@ int main(int argc, char **argv) {
     octopus::tool::AllowAllSecurityPolicy policy;
     octopus::tool::Executor executor(registry, policy);
     octopus::CliOptions options;
-    options.n_predict = 128;
+    options.n_predict = argc == 4 && std::string(argv[3]) == "uptime" ? 4096 : 128;
     auto base = octopus::makeConversationRequest(options, {});
     octopus::chat::Runtime chat(llm, registry, executor, base);
+    if (argc == 4 && std::string(argv[3]) == "uptime") {
+        const auto result = chat.turn("Há quanto tempo meu PC tá ligado?", nullptr);
+        bool observed = false;
+        for (const auto &message : chat.history().messages) {
+            if (message.role == octopus::llm::Role::Tool) {
+                const auto payload = nlohmann::json::parse(message.content);
+                if (payload.at("status") == "success" && payload.at("output").is_object() &&
+                    payload.at("output").at("exit_code") == 0 &&
+                    !payload.at("output").value("stdout", std::string{}).empty()) {
+                    for (const auto &prompt : compiler.prompts)
+                        observed |= prompt.find(message.content) != std::string::npos;
+                }
+            }
+            std::cout << "message role=" << static_cast<int>(message.role)
+                      << " content=" << message.content << '\n';
+            for (const auto &call : message.tool_calls)
+                std::cout << "call " << call.id << " " << call.identity << " "
+                          << call.arguments.dump() << '\n';
+        }
+        if (!result) {
+            std::cerr << result.error() << '\n';
+            return 1;
+        }
+        std::cout << "assistant: " << result.value().response.text << '\n';
+        if (!observed)
+            std::cerr
+                << "uptime probe requires successful local execution in the continuation prompt\n";
+        return observed ? 0 : 1;
+    }
+    if (argc == 4) {
+        if (std::string(argv[3]) != "os.exec")
+            return 2;
+        const auto result = chat.turn("Call os.exec exactly once with program /usr/bin/printf and "
+                                      "args [\"octopus-exec-probe\"]. Report the exact stdout.",
+                                      nullptr);
+        if (!result) {
+            std::cerr << result.error() << '\n';
+            return 1;
+        }
+        std::size_t count = 0;
+        for (const auto &message : chat.history().messages) {
+            if (message.role != octopus::llm::Role::Tool)
+                continue;
+            ++count;
+            auto payload = nlohmann::json::parse(message.content);
+            bool included = false;
+            for (const auto &prompt : compiler.prompts)
+                included |= prompt.find(message.content) != std::string::npos;
+            if (payload.at("status") != "success" || !payload.at("output").is_object() ||
+                payload.at("output").at("stdout") != "octopus-exec-probe" ||
+                payload.at("output").at("exit_code") != 0 || !included) {
+                std::cerr << "os.exec verification failed: included_in_prompt=" << included
+                          << " payload=" << payload.dump() << '\n';
+                return 1;
+            }
+            std::cout << "os.exec: id=" << message.tool_call_id
+                      << " included_in_prompt=" << included << " result=" << payload.dump() << '\n';
+        }
+        const bool matched =
+            result.value().response.text.find("octopus-exec-probe") != std::string::npos;
+        if (count != 1 || !matched)
+            std::cerr << "os.exec probe failed: tool_results=" << count
+                      << " response=" << result.value().response.text << '\n';
+        return count == 1 && matched ? 0 : 1;
+    }
     std::string previous_id;
     for (int i = 0; i < 2; ++i) {
         const auto before = chat.history().messages.size();
