@@ -331,8 +331,9 @@ successful process alone does not prove the answer is accurate.
 
 ### Temporary tool diagnostics
 
-Run interactive chat with `OCTOPUS_DEBUG_TOOLS=1` to print one JSON record to
-stderr for every tool result, including rejected arguments and launch errors:
+Run interactive chat with `OCTOPUS_DEBUG_TOOLS=1` to print JSON records to
+stderr for each generation and tool result, including rejected arguments and
+launch errors:
 
 ```bash
 OCTOPUS_DEBUG_TOOLS=1 ./build/local-amd-hip-debug/octo
@@ -340,10 +341,28 @@ OCTOPUS_DEBUG_TOOLS=1 ./build/local-amd-hip-debug/octo
 OCTOPUS_DEBUG_TOOLS=1 ./build/local-amd-hip-debug/octo 2>debug-tools.log
 ```
 
-Each record includes `call_id`, `tool`, `arguments`, `status` and `output`.
+Tool records (`event: tool_result`) include `call_id`, `tool`, `arguments`,
+`status`, `output` and `duration_ms`. Duration comes from the executor and is
+null when the handler was never started.
 For `os.exec`, `output` includes the command's exit code, stdout and stderr.
 Tool status `success` means execution was observed; a nonzero `exit_code` still
 means the command failed. Diagnostics are off unless the value is exactly `1`,
 replace the transient spinner while enabled, and do not enter model history or
 change tool execution. Records are emitted after each outcome; this is a small
-chat diagnostic switch, not an inference trace or an execution timeout.
+chat diagnostic switch, not a raw inference trace or an execution timeout.
+
+Generation records (`event: generation`) include `duration_ms`,
+`generated_tokens`, `finish_reason`, `tool_calls` and `status` (plus `error` on
+failure). Unavailable counts/reasons on failure are null. Both event types carry
+`turn` and `round` to group measurements; the final answer is also a generation,
+usually with zero tool calls. Counts are generated output tokens, not input
+tokens. All timings use a monotonic clock and serialize milliseconds with
+fractional precision.
+
+Generation timing wraps the LLM completion request, including prompt/template
+compilation, backend context setup, prompt evaluation, output generation,
+parsing and cleanup. It does not isolate GPU decode time. Tool timing includes
+handler cleanup but excludes validation/authorization. Model startup, user input,
+UI rendering and diagnostic writes are outside these measurements. Compare
+generation totals, tool totals, call counts and failed outcomes before choosing
+an optimization. Metrics never enter the model history.

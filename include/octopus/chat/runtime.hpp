@@ -2,13 +2,18 @@
 #include "octopus/llm/runtime.hpp"
 #include "octopus/tool/tool.hpp"
 
+#include <chrono>
 #include <cstddef>
 #include <functional>
+#include <optional>
 
 namespace octopus::chat {
 
 /* Optional synchronous diagnostic callback; it receives the history payload. */
-using ToolTrace = std::function<void(const tool::Call &, const nlohmann::json &)>;
+using ToolTrace = std::function<void(const tool::Call &, const nlohmann::json &,
+                                     std::optional<std::chrono::steady_clock::duration>)>;
+using GenerationTrace =
+    std::function<void(std::chrono::steady_clock::duration, const llm::CompletionResult &)>;
 
 class Runtime final {
   public:
@@ -20,7 +25,8 @@ class Runtime final {
     llm::CompletionResult turn(const std::string &text, const core::CancellationToken *cancellation,
                                llm::CompletionSink *sink = nullptr,
                                tool::ActivityObserver *observer = nullptr,
-                               const ToolTrace &trace = {});
+                               const ToolTrace &trace = {},
+                               const GenerationTrace &generation_trace = {});
 
     const llm::Conversation &history() const { return history_; }
 

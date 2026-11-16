@@ -4,6 +4,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cstdlib>
 #include <sstream>
+#include <stdexcept>
 
 namespace {
 
@@ -34,13 +35,15 @@ class Parser : public octopus::llm::AssistantResponseParser {
 class Backend : public octopus::llm::InferenceBackend {
   public:
     int calls = 0;
+    int generated_tokens = 0;
 
     octopus::llm::InferenceResult generate(const octopus::llm::CompiledPrompt &,
                                            const octopus::llm::GenerationOptions &,
                                            const octopus::llm::CancellationToken *,
                                            octopus::llm::CompletionSink *) override {
-        return octopus::llm::InferenceResult::success(
-            {calls++ == 0 ? "call" : "done", octopus::llm::FinishReason::EndOfGeneration, 0});
+        return octopus::llm::InferenceResult::success({calls++ == 0 ? "call" : "done",
+                                                       octopus::llm::FinishReason::EndOfGeneration,
+                                                       generated_tokens});
     }
 };
 
@@ -407,6 +410,7 @@ TEST_CASE("CLI opt-in tool debug traces rejected and executed calls without chan
         REQUIRE(setenv("OCTOPUS_DEBUG_TOOLS", enabled ? "1" : "0", 1) == 0);
         Compiler compiler;
         Backend backend;
+        backend.generated_tokens = 7;
         octopus::llm::ModelIntegration model({true, false, false}, compiler, parser);
         octopus::llm::Runtime llm(model, backend);
         octopus::tool::Registry registry;
@@ -432,16 +436,85 @@ TEST_CASE("CLI opt-in tool debug traces rejected and executed calls without chan
         std::istringstream records(errors.str());
         std::string line;
         REQUIRE(static_cast<bool>(std::getline(records, line)));
+        auto generation = nlohmann::json::parse(line);
+        CHECK(generation.at("event") == "generation");
+        CHECK(generation.at("duration_ms").get<double>() >= 0);
+        CHECK(generation.at("generated_tokens") == 7);
+        CHECK(generation.at("tool_calls") == 2);
+        CHECK(generation.at("round") == 1);
+        CHECK(generation.at("turn") == 1);
+        REQUIRE(static_cast<bool>(std::getline(records, line)));
         auto rejected = nlohmann::json::parse(line);
+        CHECK(rejected.at("duration_ms").is_null());
         CHECK(rejected.at("status") == "invalid_arguments");
         CHECK(rejected.at("arguments").at("extra") == true);
         REQUIRE(static_cast<bool>(std::getline(records, line)));
         auto executed = nlohmann::json::parse(line);
+        CHECK(executed.at("event") == "tool_result");
+        CHECK(executed.at("duration_ms").get<double>() >= 0);
+        CHECK(executed.at("round") == 1);
         CHECK(executed.at("tool") == "misc.hello");
         CHECK(executed.at("call_id") != rejected.at("call_id"));
         CHECK(executed.at("output").at("exit_code") == 2);
         CHECK(executed.at("output").at("stderr") == "bad option\n");
+        REQUIRE(static_cast<bool>(std::getline(records, line)));
+        auto final_generation = nlohmann::json::parse(line);
+        CHECK(final_generation.at("event") == "generation");
+        CHECK(final_generation.at("round") == 2);
+        CHECK(final_generation.at("tool_calls") == 0);
+        CHECK(final_generation.at("generated_tokens") == 7);
         CHECK_FALSE(static_cast<bool>(std::getline(records, line)));
         CHECK(chat.history().messages.size() == 5);
+        for (const auto &message : chat.history().messages)
+            CHECK(message.content.find("duration_ms") == std::string::npos);
+    }
+}
+
+TEST_CASE("generation diagnostics retain failures and cancellation despite callback errors") {
+    for (bool cancelled : {false, true}) {
+        struct DiagnosticBackend : octopus::llm::InferenceBackend {
+            bool cancelled = false;
+
+            octopus::llm::InferenceResult generate(const octopus::llm::CompiledPrompt &,
+                                                   const octopus::llm::GenerationOptions &,
+                                                   const octopus::llm::CancellationToken *,
+                                                   octopus::llm::CompletionSink *) override {
+                if (cancelled)
+                    return octopus::llm::InferenceResult::success(
+                        {"partial", octopus::llm::FinishReason::Cancelled, 3});
+                return octopus::llm::InferenceResult::failure("backend unavailable");
+            }
+        } backend;
+
+        backend.cancelled = cancelled;
+        Compiler compiler;
+        Parser parser;
+        octopus::llm::ModelIntegration model({true, false, false}, compiler, parser);
+        octopus::llm::Runtime llm(model, backend);
+        octopus::tool::Registry registry;
+        octopus::tool::AllowAllSecurityPolicy policy;
+        octopus::tool::Executor executor(registry, policy);
+        octopus::chat::Runtime chat(llm, registry, executor, {});
+        int notifications = 0;
+        auto completion =
+            chat.turn("request", nullptr, nullptr, nullptr, {},
+                      [&](std::chrono::steady_clock::duration elapsed,
+                          const octopus::llm::CompletionResult &result) {
+                          ++notifications;
+                          CHECK(elapsed >= std::chrono::steady_clock::duration::zero());
+                          CHECK(result.hasValue() == cancelled);
+                          if (cancelled)
+                              CHECK(result.value().generated_tokens == 3);
+                          else
+                              CHECK(result.error() == "backend unavailable");
+                          throw std::runtime_error("diagnostic failure");
+                      });
+        CHECK(notifications == 1);
+        CHECK(completion.hasValue() == cancelled);
+        if (cancelled)
+            CHECK(completion.value().finish_reason == octopus::llm::FinishReason::Cancelled);
+        else
+            CHECK(completion.error() == "backend unavailable");
+        CHECK(chat.history().messages.empty());
     }
 }
