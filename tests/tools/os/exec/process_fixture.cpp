@@ -1,5 +1,7 @@
 #include <csignal>
+#include <cstdio>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <unistd.h>
@@ -33,11 +35,36 @@ int main(int argc, char **argv) {
         const char bytes[] = {'a', char(0xff), char(0xe2), char(0x82)};
         std::cout.write(bytes, sizeof(bytes));
     }
-    if (mode == "wait") {
+    if (mode == "descendant") {
+        const auto child = fork();
+        if (child < 0)
+            return 1;
+        if (child == 0) {
+            for (;;)
+                pause();
+        }
+        std::cout << child << std::endl;
+        return 0;
+    }
+    if (mode == "wait" || mode == "closed") {
         std::cout << getpid() << std::endl;
+        if (mode == "closed") {
+            close(1);
+            close(2);
+        }
+        if (argc > 2) {
+            std::string temporary = std::string(argv[2]) + ".tmp";
+            {
+                std::ofstream ready(temporary);
+                ready << getpid();
+            }
+            if (std::rename(temporary.c_str(), argv[2]) != 0)
+                return 1;
+        }
         for (;;)
             pause();
     }
+
     if (mode == "context") {
         char cwd[4096];
         if (!getcwd(cwd, sizeof(cwd)))

@@ -120,8 +120,12 @@ class Child {
             pid_ = -1;
             return true;
         }
-        if (result < 0 && errno != EINTR)
-            check(errno, "waitpid");
+        if (result < 0 && errno != EINTR) {
+            const int error = errno;
+            if (error == ECHILD)
+                pid_ = -1;
+            check(error, "waitpid");
+        }
         return false;
     }
 
