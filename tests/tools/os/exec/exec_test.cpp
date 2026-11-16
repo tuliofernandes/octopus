@@ -5,6 +5,7 @@
 #include <fstream>
 #include <sys/resource.h>
 #include <sys/wait.h>
+#include <thread>
 #include <unistd.h>
 
 using namespace octopus::tool;
@@ -316,4 +317,61 @@ TEST_CASE("os.exec normalizes auxiliary descriptors when standard streams are cl
         REQUIRE(WIFEXITED(status));
         CHECK(WEXITSTATUS(status) == 0);
     }
+}
+
+TEST_CASE("os.exec cancellation terminates descendants in its process group") {
+    Registry registry;
+    loadTools(registry, TOOL_RESOURCE_ROOT);
+    AllowAllSecurityPolicy policy;
+    const auto ready =
+        std::filesystem::temp_directory_path() / ("octopus-group-" + std::to_string(getpid()));
+    std::filesystem::remove(ready);
+
+    struct Ready : octopus::core::CancellationToken {
+        std::filesystem::path path;
+
+        bool isCancellationRequested() const noexcept override {
+            std::error_code error;
+            return std::filesystem::exists(path, error);
+        }
+    } token;
+
+    token.path = ready;
+    const auto result =
+        Executor(registry, policy)
+            .execute({"group",
+                      "os.exec",
+                      {{"program", PROCESS_FIXTURE}, {"args", {"group", ready.string()}}}},
+                     &token);
+    REQUIRE(result.status == Status::Cancelled);
+    std::ifstream input(ready);
+    pid_t direct = 0, descendant = 0;
+    input >> direct >> descendant;
+    std::filesystem::remove(ready);
+    REQUIRE(direct > 0);
+    REQUIRE(descendant > 0);
+
+    struct Cleanup {
+        pid_t pid;
+
+        ~Cleanup() { kill(pid, SIGKILL); }
+    } cleanup{descendant};
+
+    auto stopped = [&] {
+        std::ifstream stat("/proc/" + std::to_string(descendant) + "/stat");
+        std::string text;
+        std::getline(stat, text);
+        if (text.empty())
+            return true;
+        const auto end = text.rfind(')');
+        return end != std::string::npos && end + 2 < text.size() &&
+               (text[end + 2] == 'Z' || text[end + 2] == 'X');
+    };
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{2};
+    while (!stopped() && std::chrono::steady_clock::now() < deadline)
+        std::this_thread::yield();
+    CHECK(stopped());
+    int status;
+    CHECK(waitpid(direct, &status, WNOHANG) == -1);
+    CHECK(errno == ECHILD);
 }

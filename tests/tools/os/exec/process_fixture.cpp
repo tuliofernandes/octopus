@@ -57,17 +57,27 @@ int main(int argc, char **argv) {
         std::cout << child << std::endl;
         return 0;
     }
-    if (mode == "wait" || mode == "closed") {
+    if (mode == "wait" || mode == "closed" || mode == "group") {
         std::cout << getpid() << std::endl;
         if (mode == "closed") {
             close(1);
             close(2);
         }
+        pid_t descendant = 0;
+        if (mode == "group") {
+            descendant = fork();
+            if (descendant < 0)
+                return 1;
+            if (descendant == 0) {
+                for (;;)
+                    pause();
+            }
+        }
         if (argc > 2) {
             std::string temporary = std::string(argv[2]) + ".tmp";
             {
                 std::ofstream ready(temporary);
-                ready << getpid();
+                ready << getpid() << " " << descendant;
             }
             if (std::rename(temporary.c_str(), argv[2]) != 0)
                 return 1;
