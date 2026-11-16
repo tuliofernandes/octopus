@@ -7,7 +7,11 @@
 
 namespace octopus::tool {
 
-/* Tool modules must be built with the same C++ ABI and dependencies as Octopus. */
+/**
+ * This is a native C++ ABI, not a portable plugin wire format. Version 2
+ * changes the execute return type; modules must share the host ABI and
+ * dependencies and must be rebuilt together. Manifest versioning is separate.
+ */
 struct ToolModule {
     unsigned version;
     std::string (*validate)(const nlohmann::json &);

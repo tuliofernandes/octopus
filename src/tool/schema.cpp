@@ -12,6 +12,11 @@ ArgumentValidator compileSchema(const nlohmann::json &schema) {
     if (schema.contains("$schema") &&
         schema.at("$schema") != "http://json-schema.org/draft-07/schema#")
         throw std::runtime_error("unsupported schema dialect; expected Draft-07");
+    /**
+     * Compilation alone does not reject every malformed schema. Validate
+     * against the embedded metaschema first. With no external URI loader,
+     * references stay local; the no-op format checker makes format an annotation.
+     */
     nlohmann::json_schema::json_validator meta(nullptr,
                                                [](const std::string &, const std::string &) {});
     meta.set_root_schema(nlohmann::json_schema::draft7_schema_builtin);
@@ -19,6 +24,11 @@ ArgumentValidator compileSchema(const nlohmann::json &schema) {
     auto compiled = std::make_shared<nlohmann::json_schema::json_validator>(
         nullptr, [](const std::string &, const std::string &) {});
     compiled->set_root_schema(schema);
+    /**
+     * The registry retains this compiled validator through shared ownership.
+     * Ignore the returned default-value patch: validation must not rewrite
+     * the arguments that the policy and handler receive.
+     */
     return [compiled](const nlohmann::json &arguments) -> std::string {
         try {
             compiled->validate(arguments);

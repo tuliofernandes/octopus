@@ -141,6 +141,11 @@ ChatRunResult runCliChat(const CliOptions &options, llm::Runtime &runtime, std::
     std::size_t turn_number = 0, generation_number = 0;
     chat::ToolTrace trace;
     chat::GenerationTrace generation_trace;
+    /**
+     * Diagnostic callbacks borrow this invocation and its stderr stream.
+     * Copy the history payload before adding metrics so debug fields never
+     * reach the model. Debug mode suppresses spinner output to avoid interleaving.
+     */
     if (debug_tools) {
         generation_trace = [&](std::chrono::steady_clock::duration elapsed,
                                const llm::CompletionResult &completion) {

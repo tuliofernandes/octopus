@@ -3,6 +3,11 @@
 
 namespace {
 
+/**
+ * The registry has already checked types and required fields. Embedded
+ * NUL is a separate semantic error: POSIX strings would otherwise execute
+ * only a prefix of the program or argument authorized by the policy.
+ */
 std::string validate(const nlohmann::json &args) {
     if (args.at("program").get<std::string>().find('\0') != std::string::npos)
         return "program contains NUL";
@@ -19,6 +24,10 @@ octopus::tool::Outcome execute(const nlohmann::json &args,
         cancel);
 }
 
+/**
+ * JSON quoting keeps empty arguments and spaces distinguishable for
+ * inspection. This label is display text, never a shell command to execute.
+ */
 std::string label(const nlohmann::json &args) {
     std::string text = "Running command " + args.at("program").dump();
     for (const auto &arg : args.at("args"))

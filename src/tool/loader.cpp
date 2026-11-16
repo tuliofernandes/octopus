@@ -30,8 +30,8 @@ void loadTools(Registry &registry, const std::filesystem::path &root) {
         if (!raw)
             throw std::runtime_error("cannot load tool " + path.string() + ": " + dlerror());
         /**
-         * Both registered callbacks retain the library: their function pointers
-         * must remain valid until the registry releases its entries.
+         * Every registered callback, including the optional label, retains the
+         * library so its function pointer stays valid for the registry lifetime.
          */
         auto library = std::shared_ptr<void>(raw, [](void *p) { dlclose(p); });
         dlerror();
@@ -40,6 +40,10 @@ void loadTools(Registry &registry, const std::filesystem::path &root) {
         if (error || !entry)
             throw std::runtime_error("invalid tool entry point: " + path.string());
         const ToolModule *module = entry();
+        /**
+         * Read the common version field before any v2-only member. A v1 execute
+         * callback has an incompatible signature and must never be invoked as v2.
+         */
         if (!module || module->version != kToolModuleVersion || !module->validate ||
             !module->execute)
             throw std::runtime_error("invalid tool module (expected ABI v2): " + path.string());

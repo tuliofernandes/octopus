@@ -76,6 +76,10 @@ void TranscriptRenderer::updateActivity(std::string_view label) {
     std::lock_guard<std::mutex> lock(output_mutex_);
     if (spinner_stop_requested_)
         return;
+    /**
+     * Own the label under the same mutex used by the spinner thread. Borrowed
+     * event text may disappear as soon as the synchronous callback returns.
+     */
     activity_label_ = std::move(text);
     writeActivityLocked((capabilities_.utf8 ? "\xE2\xA0\x8B " : "| ") + activity_label_, false);
 }

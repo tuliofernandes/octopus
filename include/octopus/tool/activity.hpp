@@ -10,7 +10,11 @@ struct ActivityStart {
     std::string call_id, identity, label;
 };
 
-/* Borrowed synchronous observer; exceptions never change operational results. */
+/**
+ * Borrowed only for a synchronous execute call. Event/result references
+ * must not be retained. Notifications surround handler execution only;
+ * the executor isolates observer exceptions from operational results.
+ */
 class ActivityObserver {
   public:
     virtual ~ActivityObserver() = default;

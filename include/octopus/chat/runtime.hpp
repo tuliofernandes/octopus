@@ -9,7 +9,11 @@
 
 namespace octopus::chat {
 
-/* Optional synchronous diagnostic callback; it receives the history payload. */
+/**
+ * Synchronous diagnostic callbacks borrow their arguments only during
+ * notification. Tool timing is separate from the unchanged history payload;
+ * generation timing covers the completion request, not just token decoding.
+ */
 using ToolTrace = std::function<void(const tool::Call &, const nlohmann::json &,
                                      std::optional<std::chrono::steady_clock::duration>)>;
 using GenerationTrace =

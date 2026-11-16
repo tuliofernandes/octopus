@@ -10,8 +10,10 @@
 namespace octopus {
 namespace {
 
-/* These prompts are the first Octopus policy layer. They are intentionally */
-/* short: the harness should shape behavior without drowning out the user. */
+/**
+ * The shared harness supplies operating context and tool-use guidance as
+ * structured messages; model-specific rendering happens later.
+ */
 std::string systemPrompt() {
     std::string prompt = "You are Octopus, an AI agent for UNIX.";
     struct utsname host;
@@ -21,6 +23,11 @@ std::string systemPrompt() {
     return prompt;
 }
 
+/**
+ * Formatting examples reduce malformed calls without changing the executor's
+ * literal-argv contract. They are model-neutral guidance, not argument
+ * rewriting or security enforcement.
+ */
 constexpr const char *kDeveloperPrompt =
     "Answer the user's request directly. If you are unsure, say so. "
     "Keep the final answer brief: include only requested facts and essential columns, "
@@ -53,8 +60,10 @@ constexpr const char *kDeveloperPrompt =
 constexpr int kAskRepeatLastN = 64;
 constexpr float kAskRepeatPenalty = 1.05F;
 
-/* Only transport/backend failures should make the CLI fail. Other finish */
-/* reasons, including loop detection, can still produce user-visible text. */
+/**
+ * Failed completion results make the CLI fail. Finish reasons alone,
+ * including loop detection, can still carry a user-visible response.
+ */
 bool completionFailed(const llm::CompletionResult &completion) { return !completion.hasValue(); }
 
 } /* namespace */
@@ -62,15 +71,19 @@ bool completionFailed(const llm::CompletionResult &completion) { return !complet
 llm::CompletionRequest makeConversationRequest(const CliOptions &options,
                                                const llm::Conversation &conversation) {
     llm::CompletionRequest request;
-    /* Keep the conversation structured as long as possible. Rendering to one */
-    /* model-specific prompt string happens later in the backend. */
+    /**
+     * Keep the conversation structured until the model integration/backend
+     * renders it; CLI policy does not assemble model-specific protocol text.
+     */
     request.conversation.messages.push_back({llm::Role::System, systemPrompt()});
     request.conversation.messages.push_back({llm::Role::Developer, kDeveloperPrompt});
     request.conversation.messages.insert(request.conversation.messages.end(),
                                          conversation.messages.begin(),
                                          conversation.messages.end());
-    /* CLI requests are deterministic and conservative for now: useful for */
-    /* testing, reproducibility, and reducing small-model repetition. */
+    /**
+     * Ask and chat share the same conservative greedy sampling profile.
+     * Repeat penalties discourage repetitive output without adding randomness.
+     */
     request.generation.max_tokens = options.n_predict;
     request.generation.sampler_profile = llm::SamplerProfile::Deterministic;
     request.generation.quiet = options.quiet;

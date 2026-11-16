@@ -65,6 +65,10 @@ Result Executor::execute(const Call &call, const core::CancellationToken *cancel
             return {call.id, Status::Denied, std::move(decision.reason)};
         if (cancellation && cancellation->isCancellationRequested())
             return {call.id, Status::Cancelled, "cancelled"};
+        /**
+         * Presentation is best-effort: a broken label or observer must neither
+         * change the operational outcome nor trigger a second handler invocation.
+         */
         ActivityStart event{call.id, call.identity, call.identity};
         try {
             if (entry->label)
@@ -78,6 +82,11 @@ Result Executor::execute(const Call &call, const core::CancellationToken *cancel
             }
         }
         Result result{call.id, Status::Failure, "handler failed"};
+        /**
+         * Measure only handler execution, including its cleanup/unwinding. This
+         * excludes validation, authorization and UI callbacks; earlier rejections
+         * have no duration. Preserve the handler status if cancellation arrives later.
+         */
         const auto start = std::chrono::steady_clock::now();
         try {
             auto outcome = entry->handler(call.arguments, cancellation);

@@ -59,6 +59,11 @@ llm::CompletionResult Runtime::turn(const std::string &text,
         request.conversation.tools = registry_.definitions();
         request.cancellation = cancellation;
 
+        /**
+         * This interval includes compilation, backend setup/prefill, decoding,
+         * parsing and cleanup. Finish timing before notifying diagnostics so log
+         * I/O is excluded; a trace failure must not change or retry completion.
+         */
         const auto start = generation_trace ? std::chrono::steady_clock::now()
                                             : std::chrono::steady_clock::time_point{};
         auto completion = sink ? llm_.completeStreaming(request, *sink) : llm_.complete(request);

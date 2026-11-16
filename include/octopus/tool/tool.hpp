@@ -31,6 +31,12 @@ struct Call {
 };
 enum class Status { Success, UnknownTool, InvalidArguments, Denied, Failure, Cancelled };
 
+/**
+ * Handlers report operational Success, Failure or Cancelled; lookup,
+ * validation and authorization statuses belong to the executor. A process
+ * tool may successfully observe a nonzero command exit. Summary is optional
+ * activity metadata and is not part of the JSON output sent to the model.
+ */
 struct Outcome {
     Status status;
     nlohmann::json output;
@@ -55,7 +61,9 @@ struct Result {
 };
 
 using Handler = std::function<Outcome(const nlohmann::json &, const core::CancellationToken *)>;
-/* Returns an empty string for valid arguments or a diagnostic otherwise. */
+/**
+ * Return an empty string for valid arguments or a diagnostic otherwise.
+ */
 using ArgumentValidator = std::function<std::string(const nlohmann::json &)>;
 
 struct Entry {
@@ -76,7 +84,9 @@ class Registry {
     std::map<std::string, Entry> entries_;
 };
 
-/* Discover manifests and load their accompanying in-process libraries. */
+/**
+ * Discover manifests and load their accompanying in-process libraries.
+ */
 void loadTools(Registry &registry, const std::filesystem::path &root);
 
 struct AuthorizationDecision {
