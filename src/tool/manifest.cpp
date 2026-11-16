@@ -1,4 +1,5 @@
 #include "octopus/tool/tool.hpp"
+#include "schema.hpp"
 
 #include <fstream>
 #include <regex>
@@ -22,6 +23,7 @@ Definition loadManifest(const std::filesystem::path &root, const std::string &ca
         throw std::runtime_error("cannot read manifest: " + path.string());
     try {
         auto data = nlohmann::json::parse(input);
+        validateManifestEnvelope(data);
         if (!data.at("schema_version").is_number_integer() || data.at("schema_version") != 1)
             throw std::runtime_error("unsupported manifest version");
         Definition def{data.at("category").get<std::string>(), data.at("name").get<std::string>(),
@@ -36,6 +38,7 @@ Definition loadManifest(const std::filesystem::path &root, const std::string &ca
         if (!def.parameters.is_object() ||
             def.parameters.value("type", nlohmann::json()) != "object")
             throw std::runtime_error("parameters must be an object schema");
+        compileSchema(def.parameters);
         return def;
     } catch (const std::exception &e) {
         throw std::runtime_error("invalid manifest " + path.string() + ": " + e.what());

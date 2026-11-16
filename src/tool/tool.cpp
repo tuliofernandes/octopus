@@ -1,5 +1,7 @@
 #include "octopus/tool/tool.hpp"
 
+#include "schema.hpp"
+
 #include <exception>
 #include <regex>
 #include <stdexcept>
@@ -13,6 +15,15 @@ bool Registry::add(Definition definition, Handler handler, ArgumentValidator val
         !definition.parameters.is_object() ||
         definition.parameters.value("type", nlohmann::json()) != "object")
         return false;
+    try {
+        auto generic = compileSchema(definition.parameters);
+        validator = [generic, semantic = std::move(validator)](const auto &args) {
+            auto diagnostic = generic(args);
+            return diagnostic.empty() ? semantic(args) : diagnostic;
+        };
+    } catch (const std::exception &) {
+        return false;
+    }
     const auto identity = definition.identity();
     return entries_
         .emplace(identity, Entry{std::move(definition), std::move(handler), std::move(validator)})

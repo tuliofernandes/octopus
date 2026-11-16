@@ -47,7 +47,7 @@ target_compile_features(octopus_model_completion_probe PRIVATE cxx_std_17)
 target_compile_options(octopus_model_completion_probe PRIVATE
         -Wall -Wextra -Wpedantic -Werror)
 
-add_executable(octopus_tool_tests tool/tool_test.cpp ../tests/tools/misc/hello_world/hello_world_test.cpp)
+add_executable(octopus_tool_tests tool/tool_test.cpp tool/schema_test.cpp ../tests/tools/misc/hello_world/hello_world_test.cpp)
 add_dependencies(octopus_tool_tests octopus_tool_hello_world)
 target_link_libraries(octopus_tool_tests PRIVATE octopus_tool Catch2::Catch2WithMain)
 target_compile_features(octopus_tool_tests PRIVATE cxx_std_17)

@@ -244,7 +244,7 @@ TEST_CASE("tool-specific validators accept or reject arguments before dispatch")
     CHECK(valid.output == "file.txt");
     auto invalid = executor.execute({"two", "fs.read", {{"path", 42}}});
     CHECK(invalid.status == Status::InvalidArguments);
-    CHECK(invalid.output == "path must be a string");
+    CHECK_FALSE(invalid.output.empty());
     CHECK(invalid.call_id == "two");
     CHECK(calls == 1);
 }

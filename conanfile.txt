@@ -2,6 +2,7 @@
 catch2/3.7.1
 md4c/0.5.2
 nlohmann_json/3.11.3
+json-schema-validator/2.4.0
 
 [options]
 md4c/*:md2html=False
